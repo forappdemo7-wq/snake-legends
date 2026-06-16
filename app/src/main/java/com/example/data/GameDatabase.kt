@@ -14,45 +14,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Dao
-interface GameDao {
-    @Query("SELECT * FROM user_profile WHERE id = 1")
-    fun getUserProfile(): Flow<UserProfile?>
-
-    @Query("SELECT * FROM user_profile WHERE id = 1")
-    suspend fun getUserProfileSync(): UserProfile?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUserProfile(profile: UserProfile)
-
-    @Query("SELECT * FROM unlocked_cosmetic")
-    fun getUnlockedCosmetics(): Flow<List<UnlockedCosmetic>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUnlockedCosmetic(cosmetic: UnlockedCosmetic)
-
-    @Query("SELECT * FROM match_record ORDER BY timestamp DESC")
-    fun getMatchRecords(): Flow<List<MatchRecord>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMatchRecord(record: MatchRecord)
-
-    @Query("SELECT * FROM clan ORDER BY totalScore DESC")
-    fun getClans(): Flow<List<Clan>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertClan(clan: Clan)
-
-    @Query("SELECT * FROM achievement")
-    fun getAchievements(): Flow<List<Achievement>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAchievement(achievement: Achievement)
-
-    @Query("UPDATE achievement SET currentValue = :currentVal, completed = :compl WHERE id = :id")
-    suspend fun updateAchievementProgress(id: String, currentVal: Int, compl: Boolean)
-}
-
 @Database(
     entities = [
         UserProfile::class,

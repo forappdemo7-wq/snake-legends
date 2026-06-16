@@ -6,49 +6,49 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface GameDao {
     // ---------- User Profile ----------
-    @Query("SELECT * FROM user_profile LIMIT 1")
+    @Query("SELECT * FROM user_profile WHERE id = 1")
     fun getUserProfile(): Flow<UserProfile?>
 
-    @Query("SELECT * FROM user_profile LIMIT 1")
+    @Query("SELECT * FROM user_profile WHERE id = 1")
     suspend fun getUserProfileSync(): UserProfile?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUserProfile(profile: UserProfile)
 
     // ---------- Unlocked Cosmetics ----------
-    @Query("SELECT * FROM unlocked_cosmetics")
+    @Query("SELECT * FROM unlocked_cosmetic")
     fun getUnlockedCosmetics(): Flow<List<UnlockedCosmetic>>
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUnlockedCosmetic(cosmetic: UnlockedCosmetic)
 
     // ---------- Match Records ----------
-    @Query("SELECT * FROM match_records ORDER BY timestamp DESC")
+    @Query("SELECT * FROM match_record ORDER BY timestamp DESC")
     fun getMatchRecords(): Flow<List<MatchRecord>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMatchRecord(record: MatchRecord)
 
     // ---------- Clans ----------
-    @Query("SELECT * FROM clans")
+    @Query("SELECT * FROM clan ORDER BY totalScore DESC")
     fun getClans(): Flow<List<Clan>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertClan(clan: Clan)
 
     // ---------- Achievements ----------
-    @Query("SELECT * FROM achievements")
+    @Query("SELECT * FROM achievement")
     fun getAchievements(): Flow<List<Achievement>>
 
-    // *** NEW METHOD: The one your repository calls ***
-    @Query("UPDATE achievements SET currentValue = :currentValue, completed = :completed WHERE id = :id")
-    suspend fun updateAchievementProgress(id: String, currentValue: Int, completed: Boolean)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAchievement(achievement: Achievement)   // <-- Added missing method
 
-    // Optional: If you need to fetch a single achievement
-    @Query("SELECT * FROM achievements WHERE id = :id")
-    suspend fun getAchievementById(id: String): Achievement?
+    @Query("UPDATE achievement SET currentValue = :currentVal, completed = :compl WHERE id = :id")
+    suspend fun updateAchievementProgress(id: String, currentVal: Int, compl: Boolean)
 
-    // If you need to update the whole entity (alternative)
+    @Query("SELECT * FROM achievement WHERE id = :id")
+    suspend fun getAchievementById(id: String): Achievement?   // <-- Added for completeness
+
     @Update
-    suspend fun updateAchievement(achievement: Achievement)
+    suspend fun updateAchievement(achievement: Achievement)   // <-- Added for completeness
 }
