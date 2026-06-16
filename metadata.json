@@ -1,0 +1,6 @@
+{
+  "name": "Snake Legends",
+  "description": "An ultra-polished, fluid 60FPS multiplayer-inspired vertical screen 2D Snake game centering responsive virtual controls, special stealth cosmetics, ranking ladders, custom game modes, and immersive dynamic haptics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
