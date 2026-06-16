@@ -141,8 +141,7 @@ private fun TabButton(
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
-            .weight(1f)
+        modifier = Modifier.weight(1f)
             .clip(RoundedCornerShape(8.dp))
             .background(if (selected) Color(0xFF1E293B) else Color.Transparent)
             .clickable { onClick() }

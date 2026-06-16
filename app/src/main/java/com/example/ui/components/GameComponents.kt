@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import android.view.MotionEvent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -22,7 +21,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -213,7 +211,13 @@ fun VirtualJoystick(
                         val center = Offset(size.width / 2f, size.height / 2f)
                         val local = offset - center
                         dragOffset = clampOffset(local, radiusPx)
-                        notifyChange(dragOffset, onChange)
+                        val maxRadius = radiusPx
+                        val normalized = Vector2D(
+                            x = dragOffset.x / maxRadius,
+                            y = dragOffset.y / maxRadius
+                        )
+                        val angle = atan2(dragOffset.y, dragOffset.x)
+                        onChange(angle, normalized)
                         haptic.performHapticFeedback(HapticFeedbackType.LightImpact)
                     },
                     onDrag = { change, _ ->
@@ -221,7 +225,13 @@ fun VirtualJoystick(
                         val center = Offset(size.width / 2f, size.height / 2f)
                         val local = change.position - center
                         dragOffset = clampOffset(local, radiusPx)
-                        notifyChange(dragOffset, onChange)
+                        val maxRadius = radiusPx
+                        val normalized = Vector2D(
+                            x = dragOffset.x / maxRadius,
+                            y = dragOffset.y / maxRadius
+                        )
+                        val angle = atan2(dragOffset.y, dragOffset.x)
+                        onChange(angle, normalized)
                     },
                     onDragEnd = {
                         isDragging = false
@@ -287,15 +297,4 @@ private fun clampOffset(offset: Offset, radius: Float): Offset {
         offset.x / distance * radius,
         offset.y / distance * radius
     )
-}
-
-private fun notifyChange(offset: Offset, onChange: (Float?, Vector2D) -> Unit) {
-    val density = LocalDensity.current
-    val maxRadius = with(density) { 80.dp.toPx() }
-    val normalized = Vector2D(
-        x = offset.x / maxRadius,
-        y = offset.y / maxRadius
-    )
-    val angle = atan2(offset.y, offset.x)
-    onChange(angle, normalized)
 }

@@ -141,20 +141,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             if (completedNow || currentVal != ach.currentValue) {
-                // TODO: Ensure your GameRepository has these methods:
-                //   suspend fun updateAchievementProgress(id: String, currentValue: Int, completed: Boolean)
-                //   suspend fun claimAchievementReward(id: String, rewardCoins: Int)
-                //
-                // For now, we'll call them if they exist, else log a warning.
-                try {
-                    repository.updateAchievementProgress(ach.id, currentVal, completedNow)
-                    if (completedNow) {
-                        repository.claimAchievementReward(ach.id, ach.rewardCoins)
-                    }
-                } catch (e: Exception) {
-                    // If the methods don't exist, you can implement them in your repository.
-                    // For now, just log to avoid crashing.
-                    android.util.Log.w("GameViewModel", "Achievement update failed: ${e.message}")
+                // Direct call – repository now has the methods
+                repository.updateAchievementProgress(ach.id, currentVal, completedNow)
+                if (completedNow) {
+                    repository.claimAchievementReward(ach.id, ach.rewardCoins)
                 }
             }
         }

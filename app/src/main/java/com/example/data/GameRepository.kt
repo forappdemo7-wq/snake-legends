@@ -70,8 +70,13 @@ class GameRepository(private val gameDao: GameDao) {
 
     suspend fun updateAchievement(id: String, progress: Int) {
         // Query to check existing status
-        val matches = gameDao.getUserProfileSync() ?: return
         // We can look at individual achievements or directly update progress
+        // For now, delegate to a more specific method if needed.
+    }
+
+    // NEW METHOD: Added to match the call from GameViewModel
+    suspend fun updateAchievementProgress(id: String, currentValue: Int, completed: Boolean) {
+        gameDao.updateAchievementProgress(id, currentValue, completed)
     }
 
     suspend fun updateAchievementProgressDirect(id: String, currentValue: Int, completed: Boolean) {

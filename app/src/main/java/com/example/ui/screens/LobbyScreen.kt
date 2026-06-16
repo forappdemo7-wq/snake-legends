@@ -468,8 +468,7 @@ private fun NavLinkItem(
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
-            .weight(1f)
+        modifier = Modifier.weight(1f)
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0x0CFFFFFF))
             .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(12.dp))
