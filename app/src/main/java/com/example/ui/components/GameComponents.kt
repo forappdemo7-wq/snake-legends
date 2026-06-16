@@ -218,7 +218,7 @@ fun VirtualJoystick(
                         )
                         val angle = atan2(dragOffset.y, dragOffset.x)
                         onChange(angle, normalized)
-                        haptic.performHapticFeedback(HapticFeedbackType.LightImpact)  // <-- correct
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)  // <-- correct
                     },
                     onDrag = { change, _ ->
                         change.consume()
@@ -236,7 +236,7 @@ fun VirtualJoystick(
                     onDragEnd = {
                         isDragging = false
                         onChange(null, Vector2D(0f, 0f))
-                        haptic.performHapticFeedback(HapticFeedbackType.LightImpact)  // <-- correct
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)  // <-- correct
                     },
                     onDragCancel = {
                         isDragging = false

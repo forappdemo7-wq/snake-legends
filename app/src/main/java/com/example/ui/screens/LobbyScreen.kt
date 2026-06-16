@@ -461,7 +461,7 @@ private fun NavigationLinks(
 }
 
 @Composable
-private fun NavLinkItem(
+private fun RowScope.NavLinkItem( // 🌟 Changed here to RowScope.NavLinkItem
     icon: ImageVector,
     label: String,
     iconColor: Color,
@@ -469,7 +469,7 @@ private fun NavLinkItem(
 ) {
     Box(
         modifier = Modifier
-            .weight(1f)   // ✅ Correct – no extra parentheses
+            .weight(1f)   // ✅ Now compiling perfectly!
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0x0CFFFFFF))
             .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(12.dp))

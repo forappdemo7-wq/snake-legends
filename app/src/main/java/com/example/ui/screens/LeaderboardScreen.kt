@@ -132,7 +132,7 @@ fun LeaderboardScreen(
 
 // ---------- Tab Button Component ----------
 @Composable
-private fun TabButton(
+private fun RowScope.TabButton(
     selected: Boolean,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
@@ -142,7 +142,7 @@ private fun TabButton(
 ) {
     Box(
         modifier = Modifier
-            .weight(1f)   // ✅ Correct
+            .weight(1f)   // Now correctly references RowScope.weight()
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) Color(0xFF1E293B) else Color.Transparent)
             .clickable { onClick() }
@@ -158,9 +158,6 @@ private fun TabButton(
         }
     }
 }
-
-// AchievementsTab, AchievementItem, LeaderboardsTab, LeaderboardItem remain unchanged.
-// (They are correct and compile.)
 
 // ---------- Achievements Tab ----------
 @Composable
