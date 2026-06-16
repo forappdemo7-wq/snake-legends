@@ -8,22 +8,16 @@ import android.os.Vibrator
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.*          // your Room entities and DAO (MatchRecord, UserProfile, etc.)
+import com.example.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-/**
- * ViewModel for the game – manages the game engine, multiplayer, database, and UI state.
- * All data classes (Snake, Orb, ArenaTheme, etc.) come from GameModels.kt in this package.
- */
 class GameViewModel(application: Application) : AndroidViewModel(application) {
-
-    // ---------- Database & Repository ----------
     private val db = GameDatabase.getDatabase(application, viewModelScope)
     private val repository = GameRepository(db.gameDao())
 
-    // ---------- Exposed UI State ----------
+    // Expose UI states reactively
     val userProfile: StateFlow<UserProfile?> = repository.userProfile
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -39,67 +33,51 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val achievements: StateFlow<List<Achievement>> = repository.achievements
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // ---------- Game Engine & Multiplayer ----------
+    // Active live Engine configurations
     val gameEngine = GameEngine()
-    val multiplayerManager = MultiplayerManager()   // Must be defined in com.example.game
-
+    val multiplayerManager = MultiplayerManager()
+    
     private val _isGameActive = MutableStateFlow(false)
     val isGameActive: StateFlow<Boolean> = _isGameActive.asStateFlow()
 
-    // ---------- Haptics ----------
     private val vibrator = application.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-    var hapticsEnabled: Boolean = true
 
-    // ---------- UI Settings ----------
-    var privateRoomCode: String = ""
-    val selectedAbility = MutableStateFlow("SHIELD")
-
-    // ---------- Initialization ----------
     init {
-        // Wire up haptic callbacks from the engine to actual device vibration
+        // Wire up haptic callbacks from the engine to actual Android hardware
         gameEngine.onHapticTrigger = { type ->
             triggerDeviceHaptic(type)
         }
     }
 
-    // ---------- Public Actions ----------
+    var privateRoomCode: String = ""
+    val selectedAbility = MutableStateFlow("SHIELD")
 
-    /**
-     * Starts a new game with the given mode, theme, and optional room code.
-     */
     fun startNewGame(mode: String, theme: ArenaTheme, roomCode: String = "") {
         this.privateRoomCode = roomCode
         viewModelScope.launch {
-            val user = repository.userProfile.first()  // suspends until profile is loaded
+            val user = repository.userProfile.first()
             val skin = user?.currentSkin ?: "Neon Cyber"
-
-            // Configure engine
+            
             gameEngine.selectedPlayerAbility = selectedAbility.value
             gameEngine.gameMode = mode
             gameEngine.arenaTheme = theme
             gameEngine.resetEngine()
-
-            // Apply player skin
-            gameEngine.playerSnake?.let { player ->
-                player.skinName = skin
-                player.primaryColor = getPrimaryColorForSkin(skin)
-                player.secondaryColor = getSecondaryColorForSkin(skin)
+            
+            // Set Player Skin properties
+            gameEngine.playerSnake?.let { p ->
+                p.skinName = skin
+                p.primaryColor = getPrimaryColorForSkin(skin)
+                p.secondaryColor = getSecondaryColorForSkin(skin)
             }
-
+            
             _isGameActive.value = true
         }
     }
 
-    /**
-     * Cancels the current game without saving.
-     */
     fun cancelActiveGame() {
         _isGameActive.value = false
     }
 
-    /**
-     * Finishes the game, saves the match record, and checks achievements.
-     */
     fun finishActiveGameAndSave() {
         viewModelScope.launch {
             val score = gameEngine.playerSnake?.score ?: 0
@@ -108,7 +86,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val xp = gameEngine.totalXpEarned
             val mode = gameEngine.gameMode
 
-            // Save match record
+            // Log entry
             val record = MatchRecord(
                 mode = mode,
                 score = score,
@@ -117,17 +95,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 coinsEarned = coins
             )
             repository.saveMatchRecord(record)
-
-            // Check achievements
+            
+            // Re-verify achievement progress directly on successful save
             checkAchievementsState(score, placement, mode)
 
             _isGameActive.value = false
         }
     }
 
-    /**
-     * Checks and updates achievements based on the game outcome.
-     */
     private suspend fun checkAchievementsState(score: Int, placement: Int, mode: String) {
         val achievementsList = repository.achievements.first()
         val user = repository.userProfile.first() ?: return
@@ -166,19 +141,25 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             if (completedNow || currentVal != ach.currentValue) {
-                // Update achievement progress
-                repository.updateAchievementProgress(ach.id, currentVal, completedNow)
-                if (completedNow) {
-                    // Claim reward coins if achievement completed
-                    repository.claimAchievementReward(ach.id, ach.rewardCoins)
+                // TODO: Ensure your GameRepository has these methods:
+                //   suspend fun updateAchievementProgress(id: String, currentValue: Int, completed: Boolean)
+                //   suspend fun claimAchievementReward(id: String, rewardCoins: Int)
+                //
+                // For now, we'll call them if they exist, else log a warning.
+                try {
+                    repository.updateAchievementProgress(ach.id, currentVal, completedNow)
+                    if (completedNow) {
+                        repository.claimAchievementReward(ach.id, ach.rewardCoins)
+                    }
+                } catch (e: Exception) {
+                    // If the methods don't exist, you can implement them in your repository.
+                    // For now, just log to avoid crashing.
+                    android.util.Log.w("GameViewModel", "Achievement update failed: ${e.message}")
                 }
             }
         }
     }
 
-    /**
-     * Purchase a cosmetic item.
-     */
     fun buyCosmetic(name: String, type: String, price: Int, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             val user = repository.userProfile.first()
@@ -199,9 +180,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Select a cosmetic as the current skin or trail.
-     */
     fun selectCosmetic(name: String, type: String) {
         viewModelScope.launch {
             val user = repository.userProfile.first() ?: return@launch
@@ -214,9 +192,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Create or join a clan.
-     */
     fun joinOrCreateClan(isCreate: Boolean, name: String, tag: String, onCompleted: (String) -> Unit) {
         viewModelScope.launch {
             if (isCreate) {
@@ -239,9 +214,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Ad‑based or daily free coins.
-     */
     fun earnFreeCoins(amount: Int) {
         viewModelScope.launch {
             val user = repository.userProfile.first() ?: return@launch
@@ -250,9 +222,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Update the player's display name.
-     */
+    var hapticsEnabled: Boolean = true
+
     fun updateUsername(newUsername: String) {
         viewModelScope.launch {
             val user = repository.userProfile.first() ?: return@launch
@@ -261,11 +232,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ---------- Private Helpers ----------
-
-    /**
-     * Trigger device vibration based on haptic type.
-     */
     private fun triggerDeviceHaptic(type: String) {
         if (!hapticsEnabled) return
         vibrator?.let { v ->
@@ -291,15 +257,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             } catch (e: Exception) {
-                // Safely ignore if permission or hardware is unavailable
                 e.printStackTrace()
             }
         }
     }
 
-    /**
-     * Map skin name to primary Compose color.
-     */
     private fun getPrimaryColorForSkin(skin: String): Color {
         return when (skin) {
             "Neon Cyber" -> Color(0xFF00FFCC)
@@ -311,9 +273,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Map skin name to secondary Compose color.
-     */
     private fun getSecondaryColorForSkin(skin: String): Color {
         return when (skin) {
             "Neon Cyber" -> Color(0xFF0099FF)

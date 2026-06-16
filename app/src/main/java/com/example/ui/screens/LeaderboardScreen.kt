@@ -33,7 +33,6 @@ fun LeaderboardScreen(
 ) {
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val achievements by viewModel.achievements.collectAsStateWithLifecycle()
-
     var selectedTab by remember { mutableStateOf(0) } // 0 = Achievements, 1 = Leaderboards
 
     // Mock high score leaders – in production, fetch from repository
@@ -164,7 +163,10 @@ private fun TabButton(
 @Composable
 fun AchievementsTab(achievements: List<Achievement>) {
     if (achievements.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
             CircularProgressIndicator(color = Color(0xFF00FFCC))
         }
     } else {
@@ -174,7 +176,7 @@ fun AchievementsTab(achievements: List<Achievement>) {
         ) {
             items(
                 count = achievements.size,
-                key = { index -> achievements[index].id } // Unique id for stable keys
+                key = { index -> achievements[index].id }
             ) { index ->
                 AchievementItem(achievement = achievements[index])
             }
@@ -222,14 +224,24 @@ private fun AchievementItem(achievement: Achievement) {
                             .background(Color(0xFF00FFCC)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = "Completed", tint = Color.Black, modifier = Modifier.size(14.dp))
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Completed",
+                            tint = Color.Black,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 } else {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(Icons.Default.MonetizationOn, contentDescription = "Coins Reward", tint = Color(0xFFFFFF33), modifier = Modifier.size(14.dp))
+                        Icon(
+                            Icons.Default.MonetizationOn,
+                            contentDescription = "Coins Reward",
+                            tint = Color(0xFFFFFF33),
+                            modifier = Modifier.size(14.dp)
+                        )
                         Text(
                             text = "+${achievement.rewardCoins}",
                             color = Color(0xFFFFFF33),
@@ -276,7 +288,7 @@ fun LeaderboardsTab(leaders: List<Pair<String, Int>>) {
     ) {
         items(
             count = leaders.size,
-            key = { index -> leaders[index].first } // Use name as unique key
+            key = { index -> leaders[index].first }
         ) { index ->
             LeaderboardItem(
                 name = leaders[index].first,

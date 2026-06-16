@@ -414,6 +414,15 @@ class MultiplayerManager {
         clearPeerSnakes()
     }
 
+    /**
+     * Returns a thread‑safe snapshot of all current peer snake data.
+     * The snapshot is a Map of username -> PeerSnakeData, copied under synchronization.
+     * This is used by the game engine to safely sync multiplayer snakes.
+     */
+    fun getPeerSnakesSnapshot(): Map<String, PeerSnakeData> = synchronized(peerSnakes) {
+        peerSnakes.toMap()
+    }
+
     // ---------- Private Helpers ----------
 
     private fun addChatMessage(msg: LobbyChatMessage) {

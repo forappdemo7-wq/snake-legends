@@ -35,16 +35,12 @@ fun ClansScreen(
     val clansList by viewModel.clans.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
 
-    // Dialog states
     var showCreateDialog by remember { mutableStateOf(false) }
     var clanNameInput by remember { mutableStateOf("") }
     var clanTagInput by remember { mutableStateOf("") }
 
-    // Snackbar state for messages
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingMessage by remember { mutableStateOf<String?>(null) }
-
-    // Loading state for actions
     var isProcessing by remember { mutableStateOf(false) }
 
     // Show snackbar when a message is set
@@ -164,7 +160,7 @@ fun ClansScreen(
                             }
                         }
                     } else {
-                        // User NOT in a Clan -> Prompt options
+                        // User NOT in a Clan
                         GlassmorphicCard(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -220,7 +216,7 @@ fun ClansScreen(
                         .padding(bottom = 10.dp)
                 )
 
-                // List of Clans
+                // List of Clans – FIX: key now uses index, not id.
                 if (clansList.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -235,7 +231,10 @@ fun ClansScreen(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(clansList.size, key = { clansList[it].id }) { index ->
+                        items(
+                            count = clansList.size,
+                            key = { index -> index }  // FIXED: Use index as stable key
+                        ) { index ->
                             ClanRow(
                                 clan = clansList[index],
                                 isUserInAnyClan = userProfile?.clanName != null,

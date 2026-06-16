@@ -11,11 +11,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -46,7 +44,6 @@ import kotlin.math.sqrt
 import kotlin.math.roundToInt
 
 // ---------- Glassmorphic Card ----------
-
 @Composable
 fun GlassmorphicCard(
     modifier: Modifier = Modifier,
@@ -74,7 +71,6 @@ fun GlassmorphicCard(
                 shape = RoundedCornerShape(cornerRadius)
             )
             .drawBehind {
-                // Glow / shadow effect
                 if (glowColor != null) {
                     drawRoundRect(
                         color = glowColor.copy(alpha = 0.05f),
@@ -95,7 +91,6 @@ fun GlassmorphicCard(
 }
 
 // ---------- Glow Button ----------
-
 @Composable
 fun GlowButton(
     text: String,
@@ -148,7 +143,6 @@ fun GlowButton(
         contentAlignment = Alignment.Center
     ) {
         if (loading) {
-            // Simple loading indicator – could be replaced with a CircularProgressIndicator
             Box(
                 modifier = Modifier
                     .size(20.dp)
@@ -167,7 +161,6 @@ fun GlowButton(
 }
 
 // ---------- Virtual Joystick ----------
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun VirtualJoystick(
@@ -181,7 +174,6 @@ fun VirtualJoystick(
     var isDragging by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
 
-    // Animate the handle back to center when released
     val animatedOffset by animateOffsetAsState(
         targetValue = if (isDragging) dragOffset else Offset.Zero,
         animationSpec = spring(
@@ -285,7 +277,6 @@ fun VirtualJoystick(
 }
 
 // ---------- Helper Functions ----------
-
 private fun clampOffset(offset: Offset, radius: Float): Offset {
     val distance = sqrt(offset.x * offset.x + offset.y * offset.y)
     return if (distance <= radius) offset else Offset(
@@ -295,7 +286,6 @@ private fun clampOffset(offset: Offset, radius: Float): Offset {
 }
 
 private fun notifyChange(offset: Offset, onChange: (Float?, Vector2D) -> Unit) {
-    // Normalize to -1..1 range
     val maxRadius = 80.dp.toPx()
     val normalized = Vector2D(
         x = offset.x / maxRadius,
@@ -305,6 +295,5 @@ private fun notifyChange(offset: Offset, onChange: (Float?, Vector2D) -> Unit) {
     onChange(angle, normalized)
 }
 
-// Extension to get center of a Box's size
 private val BoxScope.size: Size get() = size
 private val Size.center: Offset get() = Offset(width / 2f, height / 2f)

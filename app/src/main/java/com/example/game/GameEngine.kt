@@ -80,64 +80,64 @@ class GameEngine {
 
     // ---------- Constants (all in frames at 60 fps) ----------
     companion object {
-        private const val FRAME_RATE = 60
-        private fun sec(sec: Int) = sec * FRAME_RATE
-        private fun secF(sec: Float) = (sec * FRAME_RATE).toInt()
+    private const val FRAME_RATE = 60
+    private fun secondsToFrames(seconds: Int) = seconds * FRAME_RATE
+    private fun secondsToFramesFloat(seconds: Float) = (seconds * FRAME_RATE).toInt()
 
-        const val ABILITY_SHIELD_DURATION = sec(3)
-        const val ABILITY_FREEZE_DURATION = sec(3)
-        const val ABILITY_EMP_DURATION = sec(3)
-        const val ABILITY_SPEED_BURST_DURATION = secF(1.6f)
-        const val ABILITY_GHOST_DURATION = sec(3)
+    // All these are now normal `val` (not `const`) because they are runtime-computed.
+    private val ABILITY_SHIELD_DURATION = secondsToFrames(3)
+    private val ABILITY_FREEZE_DURATION = secondsToFrames(3)
+    private val ABILITY_EMP_DURATION = secondsToFrames(3)
+    private val ABILITY_SPEED_BURST_DURATION = secondsToFramesFloat(1.6f)
+    private val ABILITY_GHOST_DURATION = secondsToFrames(3)
 
-        const val COOLDOWN_SHIELD = sec(9)
-        const val COOLDOWN_FREEZE = sec(10)
-        const val COOLDOWN_EMP = sec(11)
-        const val COOLDOWN_SPEED = sec(7)
-        const val COOLDOWN_GHOST = sec(9)
+    private val COOLDOWN_SHIELD = secondsToFrames(9)
+    private val COOLDOWN_FREEZE = secondsToFrames(10)
+    private val COOLDOWN_EMP = secondsToFrames(11)
+    private val COOLDOWN_SPEED = secondsToFrames(7)
+    private val COOLDOWN_GHOST = secondsToFrames(9)
 
-        const val POWERUP_DURATION = sec(5)
-        const val WEATHER_DURATION = sec(3)
+    private val POWERUP_DURATION = secondsToFrames(5)
+    private val WEATHER_DURATION = secondsToFrames(3)
 
-        const val ORB_SPAWN_COUNT = 30
-        const val MAX_ORBS = 100
-        const val MIN_SAFE_ZONE_RADIUS = 300f
-        const val SHRINK_SPEED = 0.25f
+    private const val ORB_SPAWN_COUNT = 30
+    private const val MAX_ORBS = 100
+    private const val MIN_SAFE_ZONE_RADIUS = 300f
+    private const val SHRINK_SPEED = 0.25f
+    private const val TURN_SPEED_BASE = 0.15f
+    private const val TURN_SPEED_SLIP = 0.06f
+    private const val TURN_SPEED_BOOST = 0.22f
+    private const val SPEED_BASE = 4.0f
+    private const val SPEED_BOOST = 7.5f
+    private const val SPEED_SLOW_FROZEN = 1.5f
+    private const val SPEED_SLOW_EMPED = 2.8f
+    private const val SPEED_BURST_MAX = 13.0f
 
-        const val TURN_SPEED_BASE = 0.15f
-        const val TURN_SPEED_SLIP = 0.06f
-        const val TURN_SPEED_BOOST = 0.22f
+    private const val MAGNET_RANGE = 185f
+    private const val MAGNET_PULL_FACTOR = 6.5f
 
-        const val SPEED_BASE = 4.0f
-        const val SPEED_BOOST = 7.5f
-        const val SPEED_SLOW_FROZEN = 1.5f
-        const val SPEED_SLOW_EMPED = 2.8f
-        const val SPEED_BURST_MAX = 13.0f
+    private const val BOT_SPEED_BASE = 3.5f
+    private const val BOT_SPEED_BOOST = 6.5f
+    private const val BOT_TURN_SPEED = 0.08f
+    private const val BOT_TURN_SLIP = 0.03f
+    private const val BOT_TURN_ESCAPE = 0.25f
 
-        const val MAGNET_RANGE = 185f
-        const val MAGNET_PULL_FACTOR = 6.5f
+    private const val BODY_SEGMENT_GAP = 6
+    private const val EAT_RADIUS = 32f
+    private const val HAZARD_ACTIVE_PHASE = 84
+    private const val HAZARD_CYCLE = 120
 
-        const val BOT_SPEED_BASE = 3.5f
-        const val BOT_SPEED_BOOST = 6.5f
-        const val BOT_TURN_SPEED = 0.08f
-        const val BOT_TURN_SLIP = 0.03f
-        const val BOT_TURN_ESCAPE = 0.25f
+    private const val CELESTIAL_ORB_POINTS = 100
+    private const val SUPER_ORB_POINTS = 25
+    private const val NORMAL_ORB_POINTS = 5
 
-        const val BODY_SEGMENT_GAP = 6
-        const val EAT_RADIUS = 32f
-        const val HAZARD_ACTIVE_PHASE = 84
-        const val HAZARD_CYCLE = 120
-
-        const val CELESTIAL_ORB_POINTS = 100
-        const val SUPER_ORB_POINTS = 25
-        const val NORMAL_ORB_POINTS = 5
-
-        const val KILL_COINS = 100
-        const val KILL_XP = 400
-        const val WIN_COINS = 500
-        const val WIN_XP = 1000
-    }
-
+    private const val COINS_PER_SCORE = 1 // placeholder
+    private const val XP_PER_SCORE = 1
+    private const val KILL_COINS = 100
+    private const val KILL_XP = 400
+    private const val WIN_COINS = 500
+    private const val WIN_XP = 1000
+}
     // Internal timers
     private var weatherTimer = 180
     private var eventDuration = 0
