@@ -141,13 +141,15 @@ private fun TabButton(
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier.weight(1f)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) Color(0xFF1E293B) else Color.Transparent)
-            .clickable { onClick() }
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
+    modifier = Modifier
+        .weight(1f)
+        .clip(RoundedCornerShape(12.dp))
+        .background(Color(0x0CFFFFFF))
+        .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(12.dp))
+        .clickable(onClick = onClick)
+        .padding(12.dp),
+    contentAlignment = Alignment.Center
+) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
