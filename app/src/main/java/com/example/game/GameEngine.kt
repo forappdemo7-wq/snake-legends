@@ -54,8 +54,7 @@ class GameEngine {
     val rankingList = mutableListOf<Pair<String, Int>>()
 
     // Game outcomes
-    var isGameOver = false
-        private set
+    var isGameOver = false  // now public
     var isVictory = false
         private set
     var rankingPlacement = 0

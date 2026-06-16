@@ -54,6 +54,7 @@ fun GlassmorphicCard(
     shadowElevation: Dp = 4.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val density = LocalDensity.current
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(cornerRadius))
@@ -74,14 +75,22 @@ fun GlassmorphicCard(
                 if (glowColor != null) {
                     drawRoundRect(
                         color = glowColor.copy(alpha = 0.05f),
-                        cornerRadius = CornerRadius(cornerRadius.toPx(), cornerRadius.toPx())
+                        cornerRadius = CornerRadius(
+                            with(density) { cornerRadius.toPx() },
+                            with(density) { cornerRadius.toPx() }
+                        )
                     )
                 }
-                // Simple shadow
                 drawRoundRect(
                     color = Color.Black.copy(alpha = 0.08f),
-                    topLeft = Offset(shadowElevation.toPx(), shadowElevation.toPx()),
-                    cornerRadius = CornerRadius(cornerRadius.toPx(), cornerRadius.toPx())
+                    topLeft = Offset(
+                        with(density) { shadowElevation.toPx() },
+                        with(density) { shadowElevation.toPx() }
+                    ),
+                    cornerRadius = CornerRadius(
+                        with(density) { cornerRadius.toPx() },
+                        with(density) { cornerRadius.toPx() }
+                    )
                 )
             }
             .padding(16.dp)
@@ -168,8 +177,7 @@ fun VirtualJoystick(
     onChange: (angle: Float?, normalizedOffset: Vector2D) -> Unit
 ) {
     val density = LocalDensity.current
-    val radiusPx = 80.dp.toPx()
-    val handleRadiusPx = 30.dp.toPx()
+    val radiusPx = with(density) { 80.dp.toPx() }
 
     var isDragging by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
@@ -202,7 +210,7 @@ fun VirtualJoystick(
                 detectDragGestures(
                     onDragStart = { offset ->
                         isDragging = true
-                        val center = size.center
+                        val center = Offset(size.width / 2f, size.height / 2f)
                         val local = offset - center
                         dragOffset = clampOffset(local, radiusPx)
                         notifyChange(dragOffset, onChange)
@@ -210,7 +218,7 @@ fun VirtualJoystick(
                     },
                     onDrag = { change, _ ->
                         change.consume()
-                        val center = size.center
+                        val center = Offset(size.width / 2f, size.height / 2f)
                         val local = change.position - center
                         dragOffset = clampOffset(local, radiusPx)
                         notifyChange(dragOffset, onChange)
@@ -228,19 +236,17 @@ fun VirtualJoystick(
             },
         contentAlignment = Alignment.Center
     ) {
-        // Outer pad markings
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawCircle(
                 color = Color(0x3300FFCC),
                 radius = radiusPx,
-                style = Stroke(width = 1.dp.toPx())
+                style = Stroke(width = with(density) { 1.dp.toPx() })
             )
-            // Tick marks
             for (i in 0 until 8) {
                 val a = i * (2 * Math.PI / 8).toFloat()
                 val start = Offset(
-                    (radiusPx - 10.dp.toPx()) * cos(a) + center.x,
-                    (radiusPx - 10.dp.toPx()) * sin(a) + center.y
+                    (radiusPx - with(density) { 10.dp.toPx() }) * cos(a) + center.x,
+                    (radiusPx - with(density) { 10.dp.toPx() }) * sin(a) + center.y
                 )
                 val end = Offset(
                     radiusPx * cos(a) + center.x,
@@ -250,12 +256,11 @@ fun VirtualJoystick(
                     color = Color(0x4400FFCC),
                     start = start,
                     end = end,
-                    strokeWidth = 2.dp.toPx()
+                    strokeWidth = with(density) { 2.dp.toPx() }
                 )
             }
         }
 
-        // Animated handle knob
         Box(
             modifier = Modifier
                 .offset {
@@ -276,7 +281,6 @@ fun VirtualJoystick(
     }
 }
 
-// ---------- Helper Functions ----------
 private fun clampOffset(offset: Offset, radius: Float): Offset {
     val distance = sqrt(offset.x * offset.x + offset.y * offset.y)
     return if (distance <= radius) offset else Offset(
@@ -286,7 +290,8 @@ private fun clampOffset(offset: Offset, radius: Float): Offset {
 }
 
 private fun notifyChange(offset: Offset, onChange: (Float?, Vector2D) -> Unit) {
-    val maxRadius = 80.dp.toPx()
+    val density = LocalDensity.current
+    val maxRadius = with(density) { 80.dp.toPx() }
     val normalized = Vector2D(
         x = offset.x / maxRadius,
         y = offset.y / maxRadius
@@ -294,6 +299,3 @@ private fun notifyChange(offset: Offset, onChange: (Float?, Vector2D) -> Unit) {
     val angle = atan2(offset.y, offset.x)
     onChange(angle, normalized)
 }
-
-private val BoxScope.size: Size get() = size
-private val Size.center: Offset get() = Offset(width / 2f, height / 2f)

@@ -282,7 +282,7 @@ private fun GameCanvas(
             }
         }
 
-        // Power‑ups
+        // Power-ups
         for (powerUp in engine.powerUps) {
             val viewportPos = worldToViewport(powerUp.position)
             val rad = powerUp.size * scaleFactor
@@ -339,7 +339,6 @@ private fun GameCanvas(
 }
 
 // ---------- Drawing Helpers (full implementations) ----------
-
 private fun drawArenaBackground(
     engine: GameEngine,
     px: Float,
@@ -455,8 +454,6 @@ private fun drawArenaBackground(
             for (i in 0 until starsCount) {
                 val starX = (i * 473 % engine.arenaWidth.toInt()).toFloat()
                 val starY = (i * 911 % engine.arenaHeight.toInt()).toFloat()
-                // We approximate star positions in viewport by moving them with player.
-                // Since we are in canvas, we can just draw relative to center.
                 val starViewportX = centerX + (starX - px) * scaleFactor
                 val starViewportY = centerY + (starY - py) * scaleFactor
                 if (starViewportX >= 0 && starViewportX <= canvasWidth && starViewportY >= 0 && starViewportY <= canvasHeight) {
@@ -502,7 +499,7 @@ private fun drawArenaBackground(
             }
         }
         else -> {
-            drawRect(color = Color(0xFF020617)) // fallback
+            drawRect(color = Color(0xFF020617))
         }
     }
 }
@@ -773,7 +770,7 @@ private fun drawSnake(
     drawCircle(Color.White, radius = 3.5f * scaleFactor, center = Offset(reX, reY))
     drawCircle(Color.Black, radius = 1.5f * scaleFactor, center = Offset(reX, reY))
 
-    // Ability/Status rings
+    // Status rings
     if (snake.specialAbilityActive || snake.activePowerUpType == PowerUpType.SHIELD) {
         drawCircle(
             color = Color(0xFF00E5FF).copy(alpha = 0.3f + (sin(tickState * 0.2f) + 1f) / 2f * 0.3f),
@@ -835,8 +832,7 @@ private fun drawSnake(
     }
 }
 
-// ---------- HUD, Overlays, and other composables (unchanged, kept from your version) ----------
-
+// ---------- HUD ----------
 @Composable
 private fun GameHUD(
     engine: GameEngine,
@@ -1117,11 +1113,685 @@ private fun GameHUD(
     }
 }
 
-// ---------- Killfeed, AbilityButton, BoostButton, etc. (unchanged from your version) ----------
-// [These are exactly as you already have them – I will keep them as they were to avoid repetition,
-// but ensure they are included in the final file. For brevity, I will not re‑print them here,
-// but they are present in the full code provided in the answer.]
+// ---------- Killfeed ----------
+@Composable
+private fun Killfeed(engine: GameEngine, player: Snake?, tickState: Int) {
+    val currentKills = remember(tickState) {
+        synchronized(engine.killEvents) {
+            engine.killEvents.toList()
+        }
+    }
 
-// (The rest of the file – Killfeed, AbilityButton, BoostButton, GameOverOverlay, PauseOverlay,
-//  PauseSettingsPanel, SettingRow, StatSummaryBadge, fontSpacingAlign – stays identical to your version,
-//  so I've omitted them here to save space. The full file includes them.)
+    Column(
+        modifier = Modifier
+            .align(Alignment.TopStart)
+            .padding(top = 60.dp)
+            .width(220.dp)
+            .testTag("in_game_killfeed"),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        currentKills.forEach { kill ->
+            AnimatedVisibility(
+                visible = true,
+                enter = slideInHorizontally { -it } + fadeIn(),
+                exit = fadeOut()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 4.dp, height = 16.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                if (kill.killerName == player?.name || kill.victimName == player?.name) {
+                                    Color(0xFF00FFCC)
+                                } else {
+                                    Color(0xFFFF3366)
+                                }
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = kill.killerName ?: "GRID DANGER",
+                                color = if (kill.killerName == player?.name) Color(0xFF00FFCC) else Color(0xFFF1F5F9),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Text(
+                                text = kill.weaponOrCause,
+                                color = Color(0xFFFFCC00),
+                                fontSize = 7.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 2.dp)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "ELIMINATED",
+                                color = Color.White.copy(alpha = 0.4f),
+                                fontSize = 7.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = kill.victimName,
+                                color = if (kill.victimName == player?.name) Color(0xFFFF3366) else Color(0xFF94A3B8),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------- Ability Button ----------
+@Composable
+private fun AbilityButton(player: Snake?, onTrigger: () -> Unit) {
+    val abilityType = player?.activeAbilityType ?: "SHIELD"
+    val cdMax = when (abilityType) {
+        "SHIELD" -> 540f
+        "FREEZE_PULSE" -> 600f
+        "EMP_BLAST" -> 660f
+        "SPEED_BURST" -> 420f
+        "GHOST_PHASE" -> 540f
+        else -> 1f
+    }
+    val actMax = when (abilityType) {
+        "SHIELD" -> 180f
+        "SPEED_BURST" -> 100f
+        "GHOST_PHASE" -> 180f
+        else -> 1f
+    }
+    val cooldownFraction = if (player != null) {
+        if (player.specialAbilityActive) {
+            if (abilityType == "FREEZE_PULSE" || abilityType == "EMP_BLAST") 0f
+            else player.abilityActiveDuration.toFloat() / actMax
+        } else if (player.abilityCooldownRemaining > 0) {
+            player.abilityCooldownRemaining.toFloat() / cdMax
+        } else {
+            0f
+        }
+    } else {
+        0f
+    }
+
+    val abilityIcon = when (abilityType) {
+        "SHIELD" -> Icons.Default.Shield
+        "FREEZE_PULSE" -> Icons.Default.AcUnit
+        "EMP_BLAST" -> Icons.Default.FlashOn
+        "SPEED_BURST" -> Icons.Default.Bolt
+        "GHOST_PHASE" -> Icons.Default.Widgets
+        else -> Icons.Default.Star
+    }
+    val abColor = when (abilityType) {
+        "SHIELD" -> Color(0xFF00E5FF)
+        "FREEZE_PULSE" -> Color(0xFF80D8FF)
+        "EMP_BLAST" -> Color(0xFFFFEE55)
+        "SPEED_BURST" -> Color(0xFFFF5722)
+        "GHOST_PHASE" -> Color(0xFFB0BEC5)
+        else -> Color.White
+    }
+
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .testTag("ability_shield_button")
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.6f))
+            .border(
+                2.dp,
+                if (player?.specialAbilityActive == true) abColor else abColor.copy(alpha = 0.3f),
+                CircleShape
+            )
+            .pointerInteropFilter { ev ->
+                when (ev.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        if (player != null && player.abilityCooldownRemaining <= 0 && !player.specialAbilityActive) {
+                            onTrigger()
+                        }
+                    }
+                }
+                true
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (cooldownFraction > 0f) {
+            CircularProgressIndicator(
+                progress = { cooldownFraction },
+                color = abColor,
+                trackColor = Color.Transparent,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Icon(
+            imageVector = abilityIcon,
+            contentDescription = "Activate Special Ability",
+            tint = if (player?.specialAbilityActive == true) abColor else Color.White,
+            modifier = Modifier.size(26.dp)
+        )
+    }
+}
+
+// ---------- Boost Button ----------
+@Composable
+private fun BoostButton(
+    isBoosting: Boolean,
+    onBoostingChange: (Boolean) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(72.dp)
+            .testTag("boost_dash_button")
+            .clip(CircleShape)
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        if (isBoosting) Color(0xFFFFFF33) else Color(0xFFFF3366),
+                        Color.Black
+                    )
+                )
+            )
+            .border(
+                3.dp,
+                if (isBoosting) Color(0xFFFFFF33) else Color(0xFFFF3366),
+                CircleShape
+            )
+            .pointerInteropFilter { event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> onBoostingChange(true)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onBoostingChange(false)
+                }
+                true
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Speed,
+            contentDescription = "Boost",
+            tint = if (isBoosting) Color.Black else Color.White,
+            modifier = Modifier.size(34.dp)
+        )
+    }
+}
+
+// ---------- Game Over Overlay ----------
+@Composable
+private fun GameOverOverlay(
+    engine: GameEngine,
+    player: Snake?,
+    onClaimRewards: () -> Unit,
+    onQuickRespawn: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = true,
+        enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
+        exit = fadeOut()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f)),
+            contentAlignment = Alignment.Center
+        ) {
+            GlassmorphicCard(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .padding(16.dp),
+                borderColor = Color(0xFFFF3366).copy(alpha = 0.5f),
+                backgroundColor = Color(0xFA0F1426),
+                glowColor = Color(0xFFFF3366)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = if (engine.rankingPlacement == 1) Icons.Default.EmojiEvents else Icons.Default.Cancel,
+                        contentDescription = "Completed",
+                        tint = if (engine.rankingPlacement == 1) Color(0xFFFFFF33) else Color(0xFFFF3366),
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = if (engine.rankingPlacement == 1) "VICTORY ROYALE" else "SLITHER CRASH!",
+                        color = if (engine.rankingPlacement == 1) Color(0xFFFFFF33) else Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 2.sp
+                    )
+                    Text(
+                        text = if (engine.rankingPlacement == 1) "YOU ARE THE LAST SURVIVOR" else "GAME OVER",
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        StatSummaryBadge("PLACEMENT", "${engine.rankingPlacement} / ${engine.rankingPlacement + engine.alivePlayersCount}", Color.LightGray)
+                        StatSummaryBadge("SCORE", "${player?.score ?: 0}", Color(0xFF00FFCC))
+                        StatSummaryBadge("KILLS", "${engine.totalKills}", Color(0xFFFF5252))
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF1E293B))
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("BOUNTIES RECOVERED", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("+${engine.totalXpEarned} XP", color = Color(0xFF00FFCC), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("+${engine.totalCoinsEarned} Coins", color = Color(0xFFFFFF33), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = onClaimRewards,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("claim_rewards_exit")
+                    ) {
+                        Text("CLAIM BOUNTIES & SECURE", color = Color.Black, fontWeight = FontWeight.Black)
+                    }
+
+                    if (engine.gameMode == "Casual") {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = onQuickRespawn,
+                            modifier = Modifier.testTag("casual_quick_respawn")
+                        ) {
+                            Text("QUICK RESPAWN NOW (FREE)", color = Color.LightGray, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------- Pause Overlay ----------
+@Composable
+private fun PauseOverlay(
+    onResume: () -> Unit,
+    onRestart: () -> Unit,
+    onExit: () -> Unit,
+    onSettingsToggle: () -> Unit,
+    isSettingsOpen: Boolean,
+    hapticsEnabled: Boolean,
+    onHapticsToggle: (Boolean) -> Unit,
+    joystickOnRightSide: Boolean,
+    onJoystickSideToggle: (Boolean) -> Unit,
+    lowGraphicsMode: Boolean,
+    onGraphicsToggle: (Boolean) -> Unit,
+    soundVolume: Float,
+    onVolumeChange: (Float) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.85f))
+            .clickable(enabled = true, onClick = {})
+            .testTag("game_pause_overlay"),
+        contentAlignment = Alignment.Center
+    ) {
+        GlassmorphicCard(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .padding(16.dp),
+            borderColor = Color(0xFF00FFCC).copy(alpha = 0.5f),
+            backgroundColor = Color(0xFA0F1426),
+            glowColor = Color(0xFF00FFCC)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0x0C00FFCC))
+                        .border(1.dp, Color(0x1A00FFCC), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Pause,
+                            contentDescription = null,
+                            tint = Color(0xFF00FFCC),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "ARENA SYSTEM PAUSED",
+                            color = Color(0xFF00FFCC),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 2.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                if (!isSettingsOpen) {
+                    // Main pause controls
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = onResume,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("pause_resume_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black)
+                                Text("RESUME CHRONOLOGY", color = Color.Black, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                            }
+                        }
+
+                        Button(
+                            onClick = onRestart,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0x3300FFCC),
+                                contentColor = Color(0xFF00FFCC)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFF00FFCC)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("pause_restart_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF00FFCC))
+                                Text("REPLAY ARENA MATCH", fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                            }
+                        }
+
+                        Button(
+                            onClick = onSettingsToggle,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0x11FFFFFF),
+                                contentColor = Color.White
+                            ),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("pause_settings_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
+                                Text("CALIBRATE SYSTEM SETTINGS", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        TextButton(
+                            onClick = onExit,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("pause_exit_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color(0xFFFF3366))
+                                Text(
+                                    "RETURN TO TERMINAL LOBBY",
+                                    color = Color(0xFFFF3366),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Settings panel
+                    PauseSettingsPanel(
+                        onBack = onSettingsToggle,
+                        hapticsEnabled = hapticsEnabled,
+                        onHapticsToggle = onHapticsToggle,
+                        joystickOnRightSide = joystickOnRightSide,
+                        onJoystickSideToggle = onJoystickSideToggle,
+                        lowGraphicsMode = lowGraphicsMode,
+                        onGraphicsToggle = onGraphicsToggle,
+                        soundVolume = soundVolume,
+                        onVolumeChange = onVolumeChange
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---------- Pause Settings Panel ----------
+@Composable
+private fun PauseSettingsPanel(
+    onBack: () -> Unit,
+    hapticsEnabled: Boolean,
+    onHapticsToggle: (Boolean) -> Unit,
+    joystickOnRightSide: Boolean,
+    onJoystickSideToggle: (Boolean) -> Unit,
+    lowGraphicsMode: Boolean,
+    onGraphicsToggle: (Boolean) -> Unit,
+    soundVolume: Float,
+    onVolumeChange: (Float) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "SYSTEM CALIBRATIONS",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+
+        SettingRow(
+            title = "CYBER-HAPTICS",
+            description = "Tactile shockwaves on collisions/kills",
+            checked = hapticsEnabled,
+            onCheckedChange = onHapticsToggle
+        )
+        SettingRow(
+            title = "CONTROLLER REVERSAL",
+            description = "Relocate Joystick to right side",
+            checked = joystickOnRightSide,
+            onCheckedChange = onJoystickSideToggle
+        )
+        SettingRow(
+            title = "LOW GRAPHICS MODE",
+            description = "Optimize FPS for low power devices",
+            checked = lowGraphicsMode,
+            onCheckedChange = onGraphicsToggle
+        )
+
+        // Volume slider
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0x06FFFFFF))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("AUDIO AMPLIFICATION", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("${(soundVolume * 100).toInt()}%", color = Color(0xFF00FFCC), fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+            Slider(
+                value = soundVolume,
+                onValueChange = onVolumeChange,
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFF00FFCC),
+                    activeTrackColor = Color(0xFF00FFCC),
+                    inactiveTrackColor = Color.Black
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .testTag("setting_slider_volume")
+            )
+        }
+
+        Button(
+            onClick = onBack,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(45.dp)
+                .testTag("save_settings_back")
+        ) {
+            Text("CONFIRM DEPLOY", color = Color.Black, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+        }
+    }
+}
+
+// ---------- Setting Row ----------
+@Composable
+private fun SettingRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0x06FFFFFF))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column {
+            Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            Text(description, color = Color.Gray, fontSize = 8.5.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color(0xFF00FFCC),
+                checkedTrackColor = Color(0x3300FFCC),
+                uncheckedThumbColor = Color.Gray,
+                uncheckedTrackColor = Color.Black
+            )
+        )
+    }
+}
+
+// ---------- Stat Summary Badge ----------
+@Composable
+fun StatSummaryBadge(label: String, value: String, accentColor: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(value, color = accentColor, fontSize = 18.sp, fontWeight = FontWeight.Black)
+    }
+}
+
+// ---------- Helper ----------
+private fun fontSpacingAlign(p: Float, bounds: Float, spacing: Float): Float {
+    return (p - bounds) - (p - bounds) % spacing
+}
