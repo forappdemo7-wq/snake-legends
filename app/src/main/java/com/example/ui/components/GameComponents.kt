@@ -24,7 +24,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType   // <-- IMPORTANT
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -218,7 +218,7 @@ fun VirtualJoystick(
                         )
                         val angle = atan2(dragOffset.y, dragOffset.x)
                         onChange(angle, normalized)
-                        haptic.performHapticFeedback(HapticFeedbackType.LightImpact)
+                        haptic.performHapticFeedback(HapticFeedbackType.LightImpact)  // <-- correct
                     },
                     onDrag = { change, _ ->
                         change.consume()
@@ -236,7 +236,7 @@ fun VirtualJoystick(
                     onDragEnd = {
                         isDragging = false
                         onChange(null, Vector2D(0f, 0f))
-                        haptic.performHapticFeedback(HapticFeedbackType.LightImpact)
+                        haptic.performHapticFeedback(HapticFeedbackType.LightImpact)  // <-- correct
                     },
                     onDragCancel = {
                         isDragging = false
