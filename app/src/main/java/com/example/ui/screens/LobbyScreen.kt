@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.*
@@ -1789,7 +1791,7 @@ fun MultiplayerLobbyCard(
     onSendMessage: () -> Unit
 ) {
     val participants = mpManager.activeParticipants
-    val chatMessages by viewModel.chatMessages.collectAsState()
+    val chatMessages by lobbyViewModel.chatMessages.collectAsStateWithLifecycle()
     val pingMs by mpManager.pingMs.collectAsStateWithLifecycle()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
