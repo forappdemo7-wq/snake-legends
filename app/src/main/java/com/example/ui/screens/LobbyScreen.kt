@@ -1787,11 +1787,12 @@ fun MultiplayerLobbyCard(
     userProfile: UserProfile?,
     privateRoomCode: String,
     chatTextInput: String,
+    chatMessages: List<ChatMessage>, // 1. Hoist the chat messages list here
     onChatTextChange: (String) -> Unit,
     onSendMessage: () -> Unit
 ) {
-    val participants = mpManager.activeParticipants
-    val chatMessages by viewModel.chatMessages.collectAsStateWithLifecycle()
+    // 2. FIX: Added 'by' and 'collectAsStateWithLifecycle()' so it evaluates to a List<String>
+    val participants by mpManager.activeParticipants.collectAsStateWithLifecycle()
     val pingMs by mpManager.pingMs.collectAsStateWithLifecycle()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1841,6 +1842,7 @@ fun MultiplayerLobbyCard(
                 }
             }
             ConnectionStatus.CONNECTED -> {
+                // This now works perfectly because participants is a unwrapped List
                 Text("Participants (${participants.size})", color = TextGray, fontSize = 12.sp)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(participants) { user ->
@@ -1856,7 +1858,8 @@ fun MultiplayerLobbyCard(
                         }
                     }
                 }
-                // Chat
+                
+                // Chat Section
                 Column {
                     Box(
                         modifier = Modifier
