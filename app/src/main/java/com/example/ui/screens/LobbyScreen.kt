@@ -14,12 +14,13 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -36,7 +37,7 @@ import com.example.game.*
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 // Color palette
@@ -54,6 +55,10 @@ val PremiumGold = Color(0xFFFFC107)
 val RareBlue = Color(0xFF00BFFF)
 val EpicPurple = Color(0xFF9C27B0)
 val LegendaryOrange = Color(0xFFFF9800)
+
+// Extensions for days/hours
+private val Int.days: Long get() = this * 24 * 60 * 60 * 1000L
+private val Int.hours: Long get() = this * 60 * 60 * 1000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,7 +92,6 @@ fun LobbyScreen(
         (xp.toFloat() / reqXp.toFloat()).coerceIn(0f, 1f)
     }
 
-    // Mock data for new sections
     var friendsOnline by remember { mutableStateOf(listOf("Alex", "Mehir", "pari", "Kalu", "Jade", "Leo", "Riya")) }
     var dailyRewardDay by remember { mutableStateOf(5) }
     var dailyRewardClaimed by remember { mutableStateOf(false) }
@@ -120,7 +124,7 @@ fun LobbyScreen(
         }
     }
 
-    // Countdown for season end (12 days from a fixed date)
+    // Countdown for season end (12 days from now)
     val seasonEndDate = remember { Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 12) }.time }
     var daysLeft by remember { mutableStateOf(12L) }
     LaunchedEffect(seasonEndDate) {
@@ -130,36 +134,58 @@ fun LobbyScreen(
         }
     }
 
+    val bpLevel = ((userProfile?.level ?: 1) - 1).coerceAtLeast(1)
+    val bpProgress = (bpLevel / 50f).coerceIn(0f, 1f)
+
+    val liveActivities = listOf(
+        "CyberAce reached Diamond Rank" to (Color(0xFFE040FB) to Icons.Default.Star),
+        "Cyber Tournament in 2h" to (PremiumGold to Icons.Default.EmojiEvents),
+        "Double XP Weekend Active!" to (Success to Icons.Default.Bolt),
+        "Clan Wars Open" to (EpicPurple to Icons.Default.Groups)
+    )
+
     Scaffold(
         containerColor = Background,
         bottomBar = {
-            // Sticky START MATCH button V2
+            // Sticky START MATCH CTA V3
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = Background,
-                shadowElevation = 16.dp
+                shadowElevation = 20.dp
             ) {
-                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                val infiniteTransition = rememberInfiniteTransition(label = "pulseShimmer")
                 val pulseScale by infiniteTransition.animateFloat(
                     initialValue = 1f,
-                    targetValue = 1.03f,
+                    targetValue = 1.04f,
                     animationSpec = infiniteRepeatable(
-                        animation = tween(800, easing = FastOutSlowInEasing),
+                        animation = tween(900, easing = FastOutSlowInEasing),
                         repeatMode = RepeatMode.Reverse
                     ),
                     label = "pulseScale"
                 )
+                val shimmerOffset by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1200, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                    label = "shimmer"
+                )
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .height(80.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .height(88.dp)
                         .scale(pulseScale)
-                        .shadow(12.dp, RoundedCornerShape(20.dp), ambientColor = Primary, spotColor = Primary)
-                        .clip(RoundedCornerShape(20.dp))
+                        .shadow(16.dp, RoundedCornerShape(22.dp), ambientColor = Primary, spotColor = Primary)
+                        .clip(RoundedCornerShape(22.dp))
                         .background(
                             Brush.horizontalGradient(
-                                colors = listOf(Primary, Secondary)
+                                colors = listOf(Primary, Secondary),
+                                startX = shimmerOffset * 0.5f,
+                                endX = 1f + shimmerOffset * 0.5f
                             )
                         )
                         .clickable {
@@ -186,22 +212,22 @@ fun LobbyScreen(
                                 Icons.Default.PlayArrow,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(32.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "START MATCH",
                                 color = Color.White,
-                                fontSize = 22.sp,
+                                fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
+                                letterSpacing = 1.5.sp
                             )
                         }
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Players Online: $playersOnlineCount · Queue ~${queueTimeSec}s",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 12.sp
+                            "$playersOnlineCount ONLINE  ·  Queue ~${queueTimeSec}s",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp
                         )
                     }
                 }
@@ -213,11 +239,11 @@ fun LobbyScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
             contentPadding = PaddingValues(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // 1. PROFILE HEADER V2
+            // 1. Profile Header V3
             item(key = "profile_header") {
-                ProfileHeaderV2(
+                ProfileHeaderV3(
                     userProfile = userProfile,
                     rankTier = rankTier,
                     xpProgress = xpProgress,
@@ -228,60 +254,59 @@ fun LobbyScreen(
                 )
             }
 
-            // 2. HERO SEASON BANNER
-            item(key = "hero_banner") {
-                HeroSeasonBanner(
+            // 2. Hero Season Banner V3
+            item(key = "hero_season") {
+                HeroSeasonBannerV3(
                     daysLeft = daysLeft,
+                    bpProgress = bpProgress,
+                    bpLevel = bpLevel,
                     onViewRewards = { /* navigate to battle pass or rewards */ }
                 )
             }
 
-            // 3. FEATURED EVENT CARD
+            // 3. Live Activity Strip
+            item(key = "live_activity") {
+                LiveActivityStrip(activities = liveActivities)
+            }
+
+            // 4. Featured Event
             item(key = "featured_event") {
                 FeaturedEventCard(onJoinEvent = { /* Join event logic */ })
             }
 
-            // 4. GAME MODES
-            item(key = "play_now_title") {
-                SectionTitle("PLAY NOW")
+            // 5. Daily Login Reward
+            item(key = "daily_reward") {
+                DailyLoginRewardV3(
+                    day = dailyRewardDay,
+                    claimed = dailyRewardClaimed,
+                    onClaim = {
+                        if (!dailyRewardClaimed) {
+                            viewModel.earnFreeCoins(300)
+                            dailyRewardClaimed = true
+                        }
+                    }
+                )
             }
 
+            // 6. Play Modes
+            item(key = "play_now_title") { SectionTitle("PLAY NOW") }
             item(key = "game_modes") {
-                GameModeRow(
-                    selectedMode = selectedMode,
-                    onModeSelected = { selectedMode = it }
-                )
+                GameModeRow(selectedMode = selectedMode, onModeSelected = { selectedMode = it })
             }
-
             item(key = "arena_themes") {
-                ArenaThemeRow(
-                    selectedTheme = selectedTheme,
-                    onThemeSelected = { selectedTheme = it }
-                )
+                ArenaThemeRow(selectedTheme = selectedTheme, onThemeSelected = { selectedTheme = it })
             }
-
             item(key = "tactical_class") {
-                TacticalClassRow(
-                    selectedClass = selectedClass,
-                    onClassSelected = { viewModel.selectedAbility.value = it }
-                )
+                TacticalClassRow(selectedClass = selectedClass, onClassSelected = { viewModel.selectedAbility.value = it })
             }
 
-            // Multiplayer settings trigger
             item(key = "multiplayer_settings") {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = { showMultiplayerSettings = true }) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = "Network Settings",
-                            tint = TextGray,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Default.Settings, null, tint = TextGray, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Network Settings", color = TextGray, fontSize = 14.sp)
                     }
@@ -302,32 +327,10 @@ fun LobbyScreen(
                 }
             }
 
-            // 5. DAILY LOGIN REWARD
-            item(key = "daily_reward") {
-                DailyLoginReward(
-                    day = dailyRewardDay,
-                    claimed = dailyRewardClaimed,
-                    onClaim = {
-                        if (!dailyRewardClaimed) {
-                            viewModel.earnFreeCoins(300)
-                            dailyRewardClaimed = true
-                        }
-                    }
-                )
-            }
-
-            // 6. FRIENDS ONLINE WIDGET
-            item(key = "friends_online") {
-                FriendsOnlineWidget(
-                    friends = friendsOnline,
-                    onInvite = { friendName -> /* invite friend to game */ }
-                )
-            }
-
-            // 7. BATTLE PASS V2
+            // 7. Battle Pass V2
             item(key = "battle_pass_v2") {
                 BattlePassV2(
-                    bpLevel = ((userProfile?.level ?: 1) - 1).coerceAtLeast(1),
+                    bpLevel = bpLevel,
                     onClaimReward = { tierNum, rewardDesc ->
                         when (tierNum) {
                             1 -> viewModel.earnFreeCoins(200)
@@ -340,10 +343,8 @@ fun LobbyScreen(
                 )
             }
 
-            // 8. MISSIONS (daily/weekly) - kept from original but redesigned cards
-            item(key = "missions_title") {
-                SectionTitle("MISSIONS")
-            }
+            // 8. Missions
+            item(key = "missions_title") { SectionTitle("MISSIONS") }
             item(key = "daily_missions") {
                 MissionList(
                     title = "Daily Missions",
@@ -365,29 +366,26 @@ fun LobbyScreen(
                 )
             }
 
-            // 9. SOCIAL REDESIGN (Row layout)
-            item(key = "social_title") {
-                SectionTitle("SOCIAL")
-            }
+            // 9. Social Redesign
+            item(key = "social_title") { SectionTitle("SOCIAL") }
             item(key = "social_grid") {
-                SocialRedesign(
-                    onShop = onNavigateToShop,
-                    onClan = onNavigateToClans,
-                    onLeaderboard = onNavigateToLeaderboard
-                )
+                SocialRedesign(onShop = onNavigateToShop, onClan = onNavigateToClans, onLeaderboard = onNavigateToLeaderboard)
             }
 
-            // 10. MATCH HISTORY V2
-            item(key = "history_title") {
-                SectionTitle("MATCH HISTORY")
+            // 10. Friends Online Widget
+            item(key = "friends_online") {
+                FriendsOnlineWidget(friends = friendsOnline, onInvite = {})
             }
+
+            // 11. Match History V3
+            item(key = "history_title") { SectionTitle("MATCH HISTORY") }
             item(key = "match_history") {
-                MatchHistoryV2(matchRecords = matchRecords)
+                MatchHistoryV3(matchRecords = matchRecords)
             }
         }
     }
 
-    // Dialogs (unchanged)
+    // Dialogs
     if (showEditNameDialog) {
         EditNameDialog(
             currentName = editedName,
@@ -415,10 +413,7 @@ fun LobbyScreen(
     }
 
     if (showMultiplayerSettings) {
-        MultiplayerSettingsSheet(
-            mpManager = mpManager,
-            onDismiss = { showMultiplayerSettings = false }
-        )
+        MultiplayerSettingsSheet(mpManager = mpManager, onDismiss = { showMultiplayerSettings = false })
     }
 }
 
@@ -435,9 +430,9 @@ fun SectionTitle(title: String) {
     )
 }
 
-// ========== Profile Header V2 ==========
+// ========== Profile Header V3 ==========
 @Composable
-fun ProfileHeaderV2(
+fun ProfileHeaderV3(
     userProfile: UserProfile?,
     rankTier: String,
     xpProgress: Float,
@@ -445,55 +440,51 @@ fun ProfileHeaderV2(
 ) {
     val animatedProgress by animateFloatAsState(targetValue = xpProgress, animationSpec = tween(600), label = "xpProgress")
     val rankColor = getRankColor(rankTier)
+    val avatarGlow = rememberInfiniteTransition(label = "avatarGlow")
+    val glowAlpha by avatarGlow.animateFloat(0.4f, 0.8f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "glowAlpha")
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        shape = RoundedCornerShape(28.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar with rank badge
+            // Animated avatar frame
             Box(
-                modifier = Modifier.size(64.dp),
-                contentAlignment = Alignment.BottomEnd
+                modifier = Modifier.size(72.dp),
+                contentAlignment = Alignment.Center
             ) {
+                Canvas(modifier = Modifier.size(72.dp)) {
+                    drawCircle(
+                        color = rankColor.copy(alpha = glowAlpha),
+                        radius = size.minDimension / 2f,
+                        style = Stroke(width = 4f)
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(listOf(Primary, Secondary))
-                        ),
+                        .background(Brush.linearGradient(listOf(Primary, Secondary)))
+                        .padding(2.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(36.dp)
-                    )
+                    Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(36.dp))
                 }
-                // Rank badge
                 Box(
                     modifier = Modifier
+                        .align(Alignment.BottomEnd)
                         .size(24.dp)
                         .clip(CircleShape)
                         .background(rankColor)
                         .border(2.dp, Background, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        getRankIcon(rankTier),
-                        contentDescription = "Rank",
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
+                    Icon(getRankIcon(rankTier), "Rank", tint = Color.White, modifier = Modifier.size(14.dp))
                 }
             }
 
@@ -504,62 +495,56 @@ fun ProfileHeaderV2(
                     Text(
                         text = userProfile?.username ?: "Player",
                         color = TextWhite,
-                        fontSize = 20.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = onEditNameClick, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = TextGray, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Edit, null, tint = TextGray, modifier = Modifier.size(16.dp))
                     }
                 }
                 Text(
                     text = "$rankTier · Level ${userProfile?.level ?: 1}",
                     color = rankColor,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // XP progress
-                Column {
-                    LinearProgressIndicator(
-                        progress = { animatedProgress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = Primary,
-                        trackColor = Color.White.copy(alpha = 0.1f)
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "${userProfile?.xp ?: 0} / ${(userProfile?.level ?: 1) * 1000} XP",
-                        color = TextLight,
-                        fontSize = 11.sp
-                    )
-                }
+                Spacer(modifier = Modifier.height(6.dp))
+                LinearProgressIndicator(
+                    progress = { animatedProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = Primary,
+                    trackColor = Color.White.copy(alpha = 0.1f)
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${userProfile?.xp ?: 0} / ${(userProfile?.level ?: 1) * 1000} XP",
+                    color = TextLight,
+                    fontSize = 12.sp
+                )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Currencies
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = Gold, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.MonetizationOn, null, tint = Gold, modifier = Modifier.size(22.dp))
                     Text(
                         text = "${userProfile?.coins ?: 0}",
                         color = TextWhite,
-                        fontSize = 14.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Diamond, contentDescription = null, tint = PremiumGold, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Diamond, null, tint = PremiumGold, modifier = Modifier.size(20.dp))
                     Text(
                         text = "${(userProfile?.coins ?: 0) / 20}",
                         color = TextWhite,
-                        fontSize = 14.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -568,120 +553,166 @@ fun ProfileHeaderV2(
     }
 }
 
-// ========== Hero Season Banner ==========
+// ========== Hero Season Banner V3 ==========
 @Composable
-fun HeroSeasonBanner(
+fun HeroSeasonBannerV3(
     daysLeft: Long,
+    bpProgress: Float,
+    bpLevel: Int,
     onViewRewards: () -> Unit
 ) {
-    Card(
+    val animatedProgress by animateFloatAsState(targetValue = bpProgress, animationSpec = tween(800), label = "bpProgress")
+    val percent = (animatedProgress * 100).roundToInt()
+
+    val particleTransition = rememberInfiniteTransition(label = "particles")
+    val particles = remember {
+        List(12) { Random.nextFloat() * 2 - 1f to Random.nextFloat() * 2 - 1f }
+    }
+    val animatedParticles = particles.map { (startX, startY) ->
+        val x = particleTransition.animateFloat(
+            initialValue = startX,
+            targetValue = startX + 0.2f,
+            animationSpec = infiniteRepeatable(tween((2000..4000).random()), RepeatMode.Reverse),
+            label = "px"
+        )
+        val y = particleTransition.animateFloat(
+            initialValue = startY,
+            targetValue = startY - 0.15f,
+            animationSpec = infiniteRepeatable(tween((2500..3500).random()), RepeatMode.Reverse),
+            label = "py"
+        )
+        x to y
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+            .height(280.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(Color(0xFF0D47A1), Color(0xFF1A237E), Color(0xFF000051))
+                )
+            )
     ) {
-        Box(
+        // Cyber snake silhouette
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val path = Path().apply {
+                moveTo(size.width * 0.2f, size.height * 0.8f)
+                cubicTo(
+                    size.width * 0.6f, size.height * 0.1f,
+                    size.width * 0.8f, size.height * 0.5f,
+                    size.width * 0.9f, size.height * 0.3f
+                )
+            }
+            drawPath(
+                path = path,
+                color = Primary.copy(alpha = 0.2f),
+                style = Stroke(width = 6f, cap = StrokeCap.Round)
+            )
+            drawCircle(Color.White.copy(alpha = 0.4f), 6f, center = Offset(size.width * 0.3f, size.height * 0.7f))
+            drawCircle(Color.Cyan.copy(alpha = 0.5f), 4f, center = Offset(size.width * 0.55f, size.height * 0.4f))
+            drawCircle(Color.Magenta.copy(alpha = 0.4f), 5f, center = Offset(size.width * 0.75f, size.height * 0.25f))
+        }
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            animatedParticles.forEachIndexed { index, (xState, yState) ->
+                val x = size.width * (0.1f + 0.8f * (xState.value + 1f) / 2f)
+                val y = size.height * (0.2f + 0.6f * (yState.value + 1f) / 2f)
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.25f),
+                    radius = 3f + (index % 3) * 1.5f,
+                    center = Offset(x, y)
+                )
+            }
+        }
+
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(24.dp))
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF1A237E), Color(0xFF0D47A1), Color(0xFF01579B))
-                    )
-                )
+                .padding(20.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Animated particles (simplified)
-            val infiniteTransition = rememberInfiniteTransition(label = "particles")
-            val p0 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Reverse), label = "p0")
-            val p1 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(3100, easing = LinearEasing), RepeatMode.Reverse), label = "p1")
-            val p2 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing), RepeatMode.Reverse), label = "p2")
-            val p3 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(3500, easing = LinearEasing), RepeatMode.Reverse), label = "p3")
-            val p4 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse), label = "p4")
-            val p5 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2900, easing = LinearEasing), RepeatMode.Reverse), label = "p5")
-            val p6 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(3300, easing = LinearEasing), RepeatMode.Reverse), label = "p6")
-            val p7 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Reverse), label = "p7")
-            val particlePositions = listOf(p0, p1, p2, p3, p4, p5, p6, p7)
-
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                particlePositions.forEachIndexed { index, offset ->
-                    val x = size.width * (0.1f + ((index * 0.12f) + offset.value * 0.05f).coerceIn(0f, 1f))
-                    val y = size.height * (0.2f + (index % 3) * 0.25f)
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.3f),
-                        radius = 4f + (index % 3) * 2f,
-                        center = Offset(x, y)
-                    )
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        "SEASON 7",
-                        color = TextWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "CYBER REBIRTH",
-                        color = TextWhite,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Default
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Battle Pass Ends:",
-                        color = TextGray,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        "$daysLeft Days",
-                        color = TextWhite,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Level 5 / 50",
-                        color = TextWhite,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Button(
-                        onClick = onViewRewards,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Primary,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("VIEW REWARDS", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                // Progress bar
+            Column {
+                Text(
+                    "SEASON 7",
+                    color = TextWhite.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "CYBER REBIRTH",
+                    color = TextWhite,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Default,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Battle Pass Progress: $percent%",
+                    color = TextGray,
+                    fontSize = 14.sp
+                )
                 LinearProgressIndicator(
-                    progress = { 0.1f },
+                    progress = { animatedProgress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
                     color = Secondary,
                     trackColor = Color.White.copy(alpha = 0.2f)
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("$daysLeft Days Remaining", color = TextGray, fontSize = 12.sp)
+                    Text("Next: Legendary Neon Skin", color = LegendaryOrange, fontSize = 12.sp)
+                }
+            }
+
+            Button(
+                onClick = onViewRewards,
+                modifier = Modifier.align(Alignment.End),
+                colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("VIEW REWARDS", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+// ========== Live Activity Strip ==========
+@Composable
+fun LiveActivityStrip(activities: List<Pair<String, Pair<Color, ImageVector>>>) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp)
+    ) {
+        items(activities) { (text, colors) ->
+            var visible by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) { visible = true }
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(400)) + slideInHorizontally(tween(400))
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = Surface,
+                    border = BorderStroke(1.dp, colors.first.copy(alpha = 0.5f)),
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(colors.second, null, tint = colors.first, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text, color = TextWhite, fontSize = 13.sp, maxLines = 1)
+                    }
+                }
             }
         }
     }
@@ -689,58 +720,61 @@ fun HeroSeasonBanner(
 
 // ========== Featured Event Card ==========
 @Composable
-fun FeaturedEventCard(
-    onJoinEvent: () -> Unit
-) {
-    val borderAnimation = rememberInfiniteTransition(label = "border")
-    val borderProgress by borderAnimation.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse),
-        label = "borderAnim"
-    )
-    val borderColor = lerp(Color(0xFFFFD700), Color(0xFFFFA000), borderProgress)
+fun FeaturedEventCard(onJoinEvent: () -> Unit) {
+    val endTime = remember { System.currentTimeMillis() + 2.days + 14.hours }
+    var timeLeft by remember { mutableStateOf(endTime - System.currentTimeMillis()) }
+    LaunchedEffect(endTime) {
+        while (timeLeft > 0) {
+            timeLeft = endTime - System.currentTimeMillis()
+            delay(1000)
+        }
+    }
+    val hours = (timeLeft / 3600000) % 24
+    val minutes = (timeLeft / 60000) % 60
+    val seconds = (timeLeft / 1000) % 60
+
+    val borderAnimation = rememberInfiniteTransition(label = "eventBorder")
+    val borderAlpha by borderAnimation.animateFloat(0.5f, 1f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "alpha")
+    val borderColor = Color(0xFFFFD700).copy(alpha = borderAlpha)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp)
+            .height(150.dp)
             .border(2.dp, borderColor, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A2E)
-        )
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E))
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF2E1A47), Color(0xFF1A1A2E))
-                    )
-                )
+                .background(Brush.linearGradient(listOf(Color(0xFF2E1A47), Color(0xFF1A1A2E))))
                 .padding(20.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.EmojiEvents,
-                    contentDescription = null,
-                    tint = Gold,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.width(20.dp))
+                Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawCircle(
+                            color = Gold.copy(alpha = 0.3f),
+                            radius = size.minDimension / 2f,
+                            center = center
+                        )
+                    }
+                    Icon(Icons.Default.EmojiEvents, null, tint = Gold, modifier = Modifier.size(40.dp))
+                }
+                Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("FEATURED EVENT", color = TextGray, fontSize = 12.sp, letterSpacing = 1.sp)
+                    Text("Cyber Championship", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Prize: 50,000 Coins", color = Gold, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Cyber Arena Championship",
-                        color = TextWhite,
-                        fontSize = 20.sp,
+                        "Ends in ${"%02d".format(hours)}:${"%02d".format(minutes)}:${"%02d".format(seconds)}",
+                        color = Danger,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Prize Pool: 50,000 Coins", color = Gold, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Ends in 2d 14h", color = TextLight, fontSize = 12.sp)
                 }
                 Button(
                     onClick = onJoinEvent,
@@ -754,12 +788,66 @@ fun FeaturedEventCard(
     }
 }
 
-// ========== Game Mode Row (redesigned) ==========
+// ========== Daily Login Reward V3 ==========
 @Composable
-fun GameModeRow(
-    selectedMode: String,
-    onModeSelected: (String) -> Unit
-) {
+fun DailyLoginRewardV3(day: Int, claimed: Boolean, onClaim: () -> Unit) {
+    val chestScale by animateFloatAsState(
+        targetValue = if (!claimed) 1.1f else 1f,
+        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
+        label = "chestAnim"
+    )
+    val totalDays = 7
+    val streakProgress = day / totalDays.toFloat()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .scale(chestScale)
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Gold, PremiumGold))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.CardGiftcard, null, tint = Color.White, modifier = Modifier.size(32.dp))
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("DAILY REWARD", color = TextGray, fontSize = 12.sp, letterSpacing = 1.sp)
+                    Text("Day $day of $totalDays", color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("300 Coins", color = Gold, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { streakProgress },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = Secondary,
+                        trackColor = Color.White.copy(alpha = 0.1f)
+                    )
+                }
+                Button(
+                    onClick = onClaim,
+                    enabled = !claimed,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (claimed) TextLight else Primary,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (claimed) "CLAIMED" else "CLAIM", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+// ========== Game Mode Row (V2) ==========
+@Composable
+fun GameModeRow(selectedMode: String, onModeSelected: (String) -> Unit) {
     val modes = listOf(
         "Casual" to "Quick Match",
         "Ranked" to "Competitive +Rank",
@@ -853,10 +941,7 @@ fun ModeCardV2(
 
 // ========== Arena Theme Redesign ==========
 @Composable
-fun ArenaThemeRow(
-    selectedTheme: ArenaTheme,
-    onThemeSelected: (ArenaTheme) -> Unit
-) {
+fun ArenaThemeRow(selectedTheme: ArenaTheme, onThemeSelected: (ArenaTheme) -> Unit) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(horizontal = 4.dp)
@@ -906,10 +991,9 @@ fun ThemeCardV2(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            // Thumbnail placeholder (could use actual images later)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    Icons.Default.Landscape, // Replace with themed icon
+                    Icons.Default.Landscape,
                     contentDescription = null,
                     tint = if (isSelected) Secondary else TextGray,
                     modifier = Modifier.size(32.dp)
@@ -922,11 +1006,7 @@ fun ThemeCardV2(
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                Text(
-                    "Night · Urban",
-                    color = TextLight,
-                    fontSize = 10.sp
-                )
+                Text("Night · Urban", color = TextLight, fontSize = 10.sp)
             }
         }
     }
@@ -934,10 +1014,7 @@ fun ThemeCardV2(
 
 // ========== Tactical Class Redesign ==========
 @Composable
-fun TacticalClassRow(
-    selectedClass: String,
-    onClassSelected: (String) -> Unit
-) {
+fun TacticalClassRow(selectedClass: String, onClassSelected: (String) -> Unit) {
     val classData = listOf(
         ClassInfo("SHIELD", "Aegis Shield", "Invulnerability", Icons.Default.Shield, Color(0xFF00E5FF), 10),
         ClassInfo("FREEZE_PULSE", "Sub-Zero Blast", "Freeze pulse", Icons.Default.AcUnit, Color(0xFF80D8FF), 15),
@@ -961,6 +1038,15 @@ fun TacticalClassRow(
         }
     }
 }
+
+data class ClassInfo(
+    val id: String,
+    val name: String,
+    val description: String,
+    val icon: ImageVector,
+    val color: Color,
+    val cooldown: Int
+)
 
 @Composable
 fun HeroClassCard(
@@ -1028,92 +1114,219 @@ fun HeroClassCard(
     }
 }
 
-// Extended ClassInfo with cooldown
-data class ClassInfo(
-    val id: String,
-    val name: String,
-    val description: String,
-    val icon: ImageVector,
-    val color: Color,
-    val cooldown: Int
-)
-
-// ========== Daily Login Reward ==========
+// ========== Battle Pass V2 ==========
 @Composable
-fun DailyLoginReward(
-    day: Int,
-    claimed: Boolean,
-    onClaim: () -> Unit
-) {
-    val chestScale by animateFloatAsState(
-        targetValue = if (!claimed) 1.1f else 1f,
-        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse) ,
-        label = "chestAnim"
+fun BattlePassV2(bpLevel: Int, onClaimReward: (Int, String) -> Unit) {
+    val tiers = listOf(
+        "200 Coins" to false,
+        "Glow Cyber (Skin)" to true,
+        "600 Coins" to false,
+        "Space Wraith (Skin)" to true,
+        "Meteor Trail" to true
     )
+    val claimedStates = remember { mutableStateListOf(*Array(tiers.size) { false }) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Surface),
         shape = RoundedCornerShape(24.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "BATTLE PASS · Season 7",
+                color = TextWhite,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { (bpLevel.toFloat() / tiers.size.toFloat()).coerceIn(0f, 1f) },
                 modifier = Modifier
-                    .size(64.dp)
-                    .scale(chestScale)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(listOf(Gold, PremiumGold))
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.CardGiftcard,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp)),
+                color = Secondary,
+                trackColor = Color.White.copy(alpha = 0.1f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(tiers.size) { index ->
+                    val (reward, isPremium) = tiers[index]
+                    val unlocked = bpLevel > index
+                    val claimed = claimedStates[index]
+                    TierCardV2(
+                        reward = reward,
+                        isPremium = isPremium,
+                        unlocked = unlocked,
+                        claimed = claimed,
+                        onClaim = {
+                            if (unlocked && !claimed) {
+                                onClaimReward(index + 1, reward)
+                                claimedStates[index] = true
+                            }
+                        },
+                        modifier = Modifier.width(120.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("DAILY REWARD", color = TextGray, fontSize = 12.sp, letterSpacing = 1.sp)
-                Text(
-                    "Day $day",
-                    color = TextWhite,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Reward: 300 Coins",
-                    color = Gold,
-                    fontSize = 14.sp
-                )
+        }
+    }
+}
+
+@Composable
+fun TierCardV2(
+    reward: String,
+    isPremium: Boolean,
+    unlocked: Boolean,
+    claimed: Boolean,
+    onClaim: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = when {
+        claimed -> Success
+        isPremium -> PremiumGold
+        else -> if (unlocked) Primary else TextLight
+    }
+    Card(
+        modifier = modifier
+            .height(140.dp)
+            .clickable(enabled = unlocked && !claimed, onClick = onClaim),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (unlocked && !claimed) Primary.copy(alpha = 0.1f) else Surface
+        ),
+        border = BorderStroke(1.5.dp, borderColor)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                if (claimed) Icons.Default.CheckCircle
+                else if (unlocked) Icons.Default.LockOpen
+                else Icons.Default.Lock,
+                contentDescription = null,
+                tint = borderColor,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                reward,
+                color = if (claimed) TextGray else TextWhite,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            if (isPremium) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Icon(Icons.Default.Diamond, "Premium", tint = PremiumGold, modifier = Modifier.size(16.dp))
+                Text("PREMIUM", color = PremiumGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
-            Button(
-                onClick = onClaim,
-                enabled = !claimed,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (claimed) TextLight else Primary,
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(if (claimed) "CLAIMED" else "CLAIM", fontWeight = FontWeight.Bold)
+            if (unlocked && !claimed) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("CLAIM", color = Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
+        }
+    }
+}
+
+// ========== Mission List ==========
+@Composable
+fun MissionList(title: String, missions: List<Pair<String, Boolean>>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            missions.forEach { (desc, done) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        desc,
+                        color = if (done) TextGray else TextWhite,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        if (done) Icons.Default.CheckCircle else Icons.Default.Circle,
+                        contentDescription = null,
+                        tint = if (done) Success else TextLight,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ========== Social Redesign ==========
+@Composable
+fun SocialRedesign(
+    onShop: () -> Unit,
+    onClan: () -> Unit,
+    onLeaderboard: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                SocialPremiumCard(icon = Icons.Default.Store, title = "Shop", subtitle = "Gear Up", onClick = onShop)
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                SocialPremiumCard(icon = Icons.Default.Groups, title = "Clan", subtitle = "2 Online", onClick = onClan)
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                SocialPremiumCard(icon = Icons.Default.Leaderboard, title = "Leaderboard", subtitle = "Top 100", onClick = onLeaderboard)
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                SocialPremiumCard(icon = Icons.Default.CardGiftcard, title = "Rewards", subtitle = "5 New", onClick = { /* Rewards screen */ })
+            }
+        }
+    }
+}
+
+@Composable
+fun SocialPremiumCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(110.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, contentDescription = null, tint = Primary, modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(title, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = TextGray, fontSize = 12.sp)
         }
     }
 }
 
 // ========== Friends Online Widget ==========
 @Composable
-fun FriendsOnlineWidget(
-    friends: List<String>,
-    onInvite: (String) -> Unit
-) {
+fun FriendsOnlineWidget(friends: List<String>, onInvite: (String) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Surface),
@@ -1125,18 +1338,8 @@ fun FriendsOnlineWidget(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "ONLINE FRIENDS",
-                    color = TextGray,
-                    fontSize = 12.sp,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    "${friends.size} Online",
-                    color = Success,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("ONLINE FRIENDS", color = TextGray, fontSize = 12.sp, letterSpacing = 1.sp)
+                Text("${friends.size} Online", color = Success, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(12.dp))
             Row(
@@ -1175,225 +1378,9 @@ fun FriendsOnlineWidget(
     }
 }
 
-// ========== Battle Pass V2 ==========
+// ========== Match History V3 ==========
 @Composable
-fun BattlePassV2(
-    bpLevel: Int,
-    onClaimReward: (Int, String) -> Unit
-) {
-    // Simplified reward tiers with free/premium tracks
-    val tiers = listOf(
-        "200 Coins" to false, // free
-        "Glow Cyber (Skin)" to true, // premium
-        "600 Coins" to false,
-        "Space Wraith (Skin)" to true,
-        "Meteor Trail" to true
-    )
-    val claimedStates = remember { mutableStateListOf(*Array(tiers.size) { false }) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "BATTLE PASS · Season 7",
-                color = TextWhite,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            // Progression line
-            LinearProgressIndicator(
-                progress = { (bpLevel.toFloat() / tiers.size.toFloat()).coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp)),
-                color = Secondary,
-                trackColor = Color.White.copy(alpha = 0.1f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(tiers.size) { index ->
-                    val (reward, isPremium) = tiers[index]
-                    val unlocked = bpLevel > index
-                    val claimed = claimedStates[index]
-                    TierCardV2(
-                        reward = reward,
-                        isPremium = isPremium,
-                        unlocked = unlocked,
-                        claimed = claimed,
-                        onClaim = {
-                            if (unlocked && !claimed) {
-                                onClaimReward(index + 1, reward) // tierNum 1-based
-                                claimedStates[index] = true
-                            }
-                        },
-                        modifier = Modifier.width(120.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TierCardV2(
-    reward: String,
-    isPremium: Boolean,
-    unlocked: Boolean,
-    claimed: Boolean,
-    onClaim: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val borderColor = when {
-        claimed -> Success
-        isPremium -> PremiumGold
-        else -> if (unlocked) Primary else TextLight
-    }
-    Card(
-        modifier = modifier
-            .height(140.dp)
-            .clickable(enabled = unlocked && !claimed, onClick = onClaim),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (unlocked && !claimed) Primary.copy(alpha = 0.1f) else Surface
-        ),
-        border = BorderStroke(1.5.dp, borderColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                if (claimed) Icons.Default.CheckCircle
-                else if (unlocked) Icons.Default.LockOpen
-                else Icons.Default.Lock,
-                contentDescription = null,
-                tint = borderColor,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                reward,
-                color = if (claimed) TextGray else TextWhite,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            if (isPremium) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Icon(
-                    Icons.Default.Diamond,
-                    contentDescription = "Premium",
-                    tint = PremiumGold,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text("PREMIUM", color = PremiumGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-            if (unlocked && !claimed) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("CLAIM", color = Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-// ========== Social Redesign (rows of cards) ==========
-@Composable
-fun SocialRedesign(
-    onShop: () -> Unit,
-    onClan: () -> Unit,
-    onLeaderboard: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(modifier = Modifier.weight(1f)) {
-                SocialPremiumCard(
-                    icon = Icons.Default.Store,
-                    title = "Shop",
-                    subtitle = "Gear Up",
-                    onClick = onShop
-                )
-            }
-            Box(modifier = Modifier.weight(1f)) {
-                SocialPremiumCard(
-                    icon = Icons.Default.Groups,
-                    title = "Clan",
-                    subtitle = "2 Online",
-                    onClick = onClan
-                )
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(modifier = Modifier.weight(1f)) {
-                SocialPremiumCard(
-                    icon = Icons.Default.Leaderboard,
-                    title = "Leaderboard",
-                    subtitle = "Top 100",
-                    onClick = onLeaderboard
-                )
-            }
-            Box(modifier = Modifier.weight(1f)) {
-                SocialPremiumCard(
-                    icon = Icons.Default.CardGiftcard,
-                    title = "Rewards",
-                    subtitle = "5 New",
-                    onClick = { /* Rewards screen */ }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun SocialPremiumCard(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(110.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, contentDescription = null, tint = Primary, modifier = Modifier.size(32.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(title, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = TextGray, fontSize = 12.sp)
-        }
-    }
-}
-
-// ========== Match History V2 ==========
-@Composable
-fun MatchHistoryV2(matchRecords: List<MatchRecord>) {
+fun MatchHistoryV3(matchRecords: List<MatchRecord>) {
     if (matchRecords.isEmpty()) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -1401,9 +1388,7 @@ fun MatchHistoryV2(matchRecords: List<MatchRecord>) {
             shape = RoundedCornerShape(24.dp)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(Icons.Default.SportsEsports, null, tint = TextLight, modifier = Modifier.size(40.dp))
@@ -1414,19 +1399,17 @@ fun MatchHistoryV2(matchRecords: List<MatchRecord>) {
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             matchRecords.take(5).forEach { record ->
-                MatchCardV2(record)
+                MatchCardV3(record)
             }
         }
     }
 }
 
 @Composable
-fun MatchCardV2(record: MatchRecord) {
-    val dateStr = remember {
-        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(record.timestamp))
-    }
-    val won = record.score > 0 // example logic
+fun MatchCardV3(record: MatchRecord) {
+    val won = record.score > 0
     val backgroundColor = if (won) Success.copy(alpha = 0.05f) else Danger.copy(alpha = 0.05f)
+    val relativeTime = getRelativeTime(record.timestamp)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1442,37 +1425,44 @@ fun MatchCardV2(record: MatchRecord) {
         ) {
             Icon(
                 if (won) Icons.Default.EmojiEvents else Icons.Default.Cancel,
-                contentDescription = null,
+                null,
                 tint = if (won) Success else Danger,
                 modifier = Modifier.size(36.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "${if (won) "🏆 Victory" else "Defeat"} · ${record.mode}",
+                    "${if (won) "🏆 Victory" else "💔 Defeat"} · ${record.mode}",
                     color = TextWhite,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(dateStr, color = TextGray, fontSize = 12.sp)
+                Text(relativeTime, color = TextGray, fontSize = 13.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    "Score ${record.score}",
-                    color = TextWhite,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Score ${record.score}", color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("+${record.xpEarned} XP", color = Primary, fontSize = 12.sp)
                     Text("+${record.coinsEarned} coins", color = Gold, fontSize = 12.sp)
                 }
+                Text("Rank Unchanged", color = TextLight, fontSize = 11.sp)
             }
         }
     }
 }
 
-// ========== Private Room Quick Card (same as original, minor tweaks) ==========
+private fun getRelativeTime(timestamp: Long): String {
+    val diff = System.currentTimeMillis() - timestamp
+    val minutes = diff / 60000
+    return when {
+        minutes < 1 -> "Just now"
+        minutes < 60 -> "${minutes}m ago"
+        minutes < 1440 -> "${minutes / 60}h ago"
+        else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
+    }
+}
+
+// ========== Private Room Quick Card ==========
 @Composable
 fun PrivateRoomQuickCard(
     privateRoomCode: String,
@@ -1522,44 +1512,7 @@ fun PrivateRoomQuickCard(
     }
 }
 
-// ========== Mission List (redesigned card style) ==========
-@Composable
-fun MissionList(title: String, missions: List<Pair<String, Boolean>>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(12.dp))
-            missions.forEach { (desc, done) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        desc,
-                        color = if (done) TextGray else TextWhite,
-                        fontSize = 14.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(
-                        if (done) Icons.Default.CheckCircle else Icons.Default.Circle,
-                        contentDescription = null,
-                        tint = if (done) Success else TextLight,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ========== Private Room Dialog (unchanged logic, updated styling) ==========
+// ========== Dialogs (unchanged from previous) ==========
 @Composable
 fun PrivateRoomDialog(
     initialCode: String,
@@ -1576,9 +1529,7 @@ fun PrivateRoomDialog(
         onDismissRequest = onDismiss,
         containerColor = Surface,
         shape = RoundedCornerShape(24.dp),
-        title = {
-            Text("Private Room Lobby", color = TextWhite, fontWeight = FontWeight.Bold)
-        },
+        title = { Text("Private Room Lobby", color = TextWhite, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
@@ -1622,13 +1573,9 @@ fun PrivateRoomDialog(
     )
 }
 
-// ========== Multiplayer Settings Sheet (unchanged, but restyled) ==========
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MultiplayerSettingsSheet(
-    mpManager: MultiplayerManager,
-    onDismiss: () -> Unit
-) {
+fun MultiplayerSettingsSheet(mpManager: MultiplayerManager, onDismiss: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = Surface,
@@ -1641,7 +1588,6 @@ fun MultiplayerSettingsSheet(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text("Network Settings", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            // Region
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1660,7 +1606,6 @@ fun MultiplayerSettingsSheet(
                     Text(mpManager.selectedRegion.regionName)
                 }
             }
-            // Lag Compensation
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1676,7 +1621,6 @@ fun MultiplayerSettingsSheet(
                     colors = SwitchDefaults.colors(checkedThumbColor = Primary)
                 )
             }
-            // Tick Rate
             Text("Tick Rate", color = TextWhite, fontSize = 16.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(20, 30, 60).forEach { rate ->
@@ -1695,7 +1639,6 @@ fun MultiplayerSettingsSheet(
     }
 }
 
-// ========== Edit Name Dialog (unchanged) ==========
 @Composable
 fun EditNameDialog(
     currentName: String,
@@ -1710,11 +1653,7 @@ fun EditNameDialog(
         title = { Text("Change Username", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                Text(
-                    "Enter a new display name (max 15 characters)",
-                    color = TextGray,
-                    fontSize = 14.sp
-                )
+                Text("Enter a new display name (max 15 characters)", color = TextGray, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = currentName,
@@ -1745,41 +1684,6 @@ fun EditNameDialog(
     )
 }
 
-// ========== Rank Helpers (unchanged) ==========
-fun getRankTier(points: Int): String {
-    return when {
-        points < 1200 -> "Bronze"
-        points < 1400 -> "Silver"
-        points < 1600 -> "Gold"
-        points < 1800 -> "Platinum"
-        points < 2000 -> "Diamond"
-        else -> "Legend"
-    }
-}
-
-fun getRankColor(tier: String): Color {
-    return when (tier) {
-        "Bronze" -> Color(0xFFCD7F32)
-        "Silver" -> Color(0xFFC0C0C0)
-        "Gold" -> Color(0xFFFFD700)
-        "Platinum" -> Color(0xFFE5E4E2)
-        "Diamond" -> Color(0xFF33CCFF)
-        else -> Primary
-    }
-}
-
-fun getRankIcon(tier: String): ImageVector {
-    return when (tier) {
-        "Bronze" -> Icons.Default.Terrain
-        "Silver" -> Icons.Default.Shield
-        "Gold" -> Icons.Default.MilitaryTech
-        "Platinum" -> Icons.Default.WorkspacePremium
-        "Diamond" -> Icons.Default.Diamond
-        else -> Icons.Default.Star
-    }
-}
-
-// ========== Multiplayer Lobby Card (from original) ==========
 @Composable
 fun MultiplayerLobbyCard(
     mpStatus: ConnectionStatus,
@@ -1832,16 +1736,12 @@ fun MultiplayerLobbyCard(
             }
             ConnectionStatus.CONNECTING, ConnectionStatus.HANDSHARING -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Primary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Primary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Connecting...", color = TextGray)
                 }
             }
             ConnectionStatus.CONNECTED -> {
-                // This now works perfectly because participants is a unwrapped List
                 Text("Participants (${participants.size})", color = TextGray, fontSize = 12.sp)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(participants) { user ->
@@ -1857,8 +1757,6 @@ fun MultiplayerLobbyCard(
                         }
                     }
                 }
-                
-                // Chat Section
                 Column {
                     Box(
                         modifier = Modifier
@@ -1915,5 +1813,39 @@ fun MultiplayerLobbyCard(
                 }
             }
         }
+    }
+}
+
+// ========== Rank Helpers ==========
+fun getRankTier(points: Int): String {
+    return when {
+        points < 1200 -> "Bronze"
+        points < 1400 -> "Silver"
+        points < 1600 -> "Gold"
+        points < 1800 -> "Platinum"
+        points < 2000 -> "Diamond"
+        else -> "Legend"
+    }
+}
+
+fun getRankColor(tier: String): Color {
+    return when (tier) {
+        "Bronze" -> Color(0xFFCD7F32)
+        "Silver" -> Color(0xFFC0C0C0)
+        "Gold" -> Color(0xFFFFD700)
+        "Platinum" -> Color(0xFFE5E4E2)
+        "Diamond" -> Color(0xFF33CCFF)
+        else -> Primary
+    }
+}
+
+fun getRankIcon(tier: String): ImageVector {
+    return when (tier) {
+        "Bronze" -> Icons.Default.Terrain
+        "Silver" -> Icons.Default.Shield
+        "Gold" -> Icons.Default.MilitaryTech
+        "Platinum" -> Icons.Default.WorkspacePremium
+        "Diamond" -> Icons.Default.Diamond
+        else -> Icons.Default.Star
     }
 }
