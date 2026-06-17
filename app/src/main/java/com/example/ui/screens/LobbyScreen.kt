@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.MatchRecord
 import com.example.data.UserProfile
 import com.example.game.*
+import com.example.game.ChatMessage
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
