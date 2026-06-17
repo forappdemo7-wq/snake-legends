@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -61,16 +62,17 @@ fun GameScreen(
     var isSettingsOpenInPause by remember { mutableStateOf(false) }
     var soundVolumeFraction by remember { mutableStateOf(0.8f) }
 
+    // Floating touch inputs
     var joystickAngle by remember { mutableStateOf<Float?>(null) }
     var isBoosting by remember { mutableStateOf(false) }
     var triggerAbility by remember { mutableStateOf(false) }
 
-    // Game loop
+    // Run custom high-performance game tick loop synced directly with coroutine clock (60 ticks / frames per second)
     LaunchedEffect(isPaused) {
         while (isActive) {
             if (!isPaused && !engine.isGameOver) {
-                val peerSnapshot = viewModel.multiplayerManager.getPeerSnakesSnapshot()
-                engine.syncMultiplayerSnakes(peerSnapshot)
+                // Sync multiplayer peers from Socket.IO layer
+                engine.syncMultiplayerSnakes(viewModel.multiplayerManager.peerSnakes)
 
                 engine.onTick(
                     joystickAngle = joystickAngle,
@@ -78,22 +80,13 @@ fun GameScreen(
                     abilityTriggered = triggerAbility
                 )
                 if (triggerAbility) {
-                    triggerAbility = false
+                    triggerAbility = false // consumer reset
                 }
 
+                // Broadcast local coordinates to Socket.IO room relay
                 engine.playerSnake?.let { p ->
-                    val primHex = String.format(
-                        "#%02X%02X%02X",
-                        (p.primaryColor.red * 255).toInt(),
-                        (p.primaryColor.green * 255).toInt(),
-                        (p.primaryColor.blue * 255).toInt()
-                    )
-                    val secHex = String.format(
-                        "#%02X%02X%02X",
-                        (p.secondaryColor.red * 255).toInt(),
-                        (p.secondaryColor.green * 255).toInt(),
-                        (p.secondaryColor.blue * 255).toInt()
-                    )
+                    val primHex = String.format("#%02X%02X%02X", (p.primaryColor.red * 255).toInt(), (p.primaryColor.green * 255).toInt(), (p.primaryColor.blue * 255).toInt())
+                    val secHex = String.format("#%02X%02X%02X", (p.secondaryColor.red * 255).toInt(), (p.secondaryColor.green * 255).toInt(), (p.secondaryColor.blue * 255).toInt())
                     viewModel.multiplayerManager.broadcastPlayerPos(
                         x = p.position.x,
                         y = p.position.y,
@@ -111,7 +104,7 @@ fun GameScreen(
 
                 tickState++
             }
-            delay(16)
+            delay(16) // ~60 FPS update constraints
         }
     }
 
@@ -120,9 +113,10 @@ fun GameScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF020617))
+            .background(Color(0xFF020617)) // Deep space slate backcolor
     ) {
-        // Game Canvas
+
+        // 1. Core 2D Game Canvas (Hardware accelerated coordinate renderer)
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -133,6 +127,7 @@ fun GameScreen(
             val centerX = canvasWidth / 2f
             val centerY = canvasHeight / 2f
 
+            // Translate camera relative to player position with dynamic camera shake impact physics
             val px = player?.position?.x ?: 1000f
             val py = player?.position?.y ?: 1000f
 
@@ -152,9 +147,66 @@ fun GameScreen(
                 return Offset(vx, vy)
             }
 
-            // ========== BACKGROUND ==========
+            // Universal Cosmic Nebula gas background drifting layer
+            val nebulaColors = when (engine.arenaTheme) {
+                ArenaTheme.CYBER_CITY -> listOf(Color(0xFFFF00CC), Color(0xFF00FFCC), Color(0xFFFF00CC))
+                ArenaTheme.SPACE_STATION -> listOf(Color(0xFF9933FF), Color(0xFF7E57C2), Color(0xFF4A148C))
+                ArenaTheme.LAVA_WORLD -> listOf(Color(0xFFFF4500), Color(0xFFFF8800), Color(0xFFDD2C00))
+                ArenaTheme.FROZEN_ARENA -> listOf(Color(0xFF00E5FF), Color(0xFF00B0FF), Color(0xFF006064))
+                ArenaTheme.JUNGLE_TEMPLE -> listOf(Color(0xFF4CAF50), Color(0xFF81C784), Color(0xFF1B5E20))
+                ArenaTheme.NEON_GRID -> listOf(Color(0xFFFF007F), Color(0xFFD500F9), Color(0xAA3D5AFE))
+            }
+            
+            val nebulaCenters = listOf(
+                Vector2D(400f, 400f) to (nebulaColors.getOrNull(0) ?: Color(0xFF00FFCC)),
+                Vector2D(1600f, 500f) to (nebulaColors.getOrNull(1) ?: Color(0xFFE040FB)),
+                Vector2D(600f, 1500f) to (nebulaColors.getOrNull(2) ?: Color(0xFF00FFCC)),
+                Vector2D(1400f, 1400f) to (nebulaColors.getOrNull(0) ?: Color(0xFF00FFCC))
+            )
+
+            if (!lowGraphicsMode) {
+                nebulaCenters.forEachIndexed { idx, pair ->
+                    val worldPos = pair.first
+                    val color = pair.second
+                    // Slowly drift around
+                    val driftX = sin(tickState * 0.005f + idx) * 35f
+                    val driftY = cos(tickState * 0.005f + idx) * 35f
+                    val finalWorldPos = Vector2D(worldPos.x + driftX, worldPos.y + driftY)
+                    val viewportPos = worldToViewport(finalWorldPos)
+                    val baseRadius = (220f + idx * 40f) * scaleFactor
+
+                    // Slow breathing pulse
+                    val pulse = 1.0f + 0.12f * sin(tickState * 0.015f + idx)
+                    val currentRadius = baseRadius * pulse
+
+                    // Layer concentric circles to build a beautiful glowing nebula cluster
+                    drawCircle(
+                        color = color.copy(alpha = 0.02f),
+                        radius = currentRadius * 1.8f,
+                        center = viewportPos
+                    )
+                    drawCircle(
+                        color = color.copy(alpha = 0.05f),
+                        radius = currentRadius * 1.1f,
+                        center = viewportPos
+                    )
+                    drawCircle(
+                        color = color.copy(alpha = 0.10f),
+                        radius = currentRadius * 0.55f,
+                        center = viewportPos
+                    )
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.025f),
+                        radius = currentRadius * 0.22f,
+                        center = viewportPos
+                    )
+                }
+            }
+
+            // Draw Background grid / themes
             when (engine.arenaTheme) {
                 ArenaTheme.CYBER_CITY -> {
+                    // Draw infinite cyan grid lines
                     val gridSpacing = if (lowGraphicsMode) 250f else 100f
                     val startX = (px - centerX) - (px - centerX) % gridSpacing
                     val endX = (px + centerX) + gridSpacing
@@ -185,22 +237,73 @@ fun GameScreen(
                         y += gridSpacing
                     }
 
-                    val topLeft = Offset(0f, 0f)
-                    val bottomRight = Offset(engine.arenaWidth * scaleFactor, engine.arenaHeight * scaleFactor)
+                    // Draw outer wall border markings
+                    val topLeft = worldToViewport(Vector2D(0f, 0f))
+                    val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
                     drawRect(
                         color = Color(0xFF00FFCC),
                         topLeft = topLeft,
                         size = Size(
-                            bottomRight.x - topLeft.x,
-                            bottomRight.y - topLeft.y
+                            (bottomRight.x - topLeft.x),
+                            (bottomRight.y - topLeft.y)
                         ),
                         style = Stroke(width = 4f)
                     )
                 }
+
+                ArenaTheme.SPACE_STATION -> {
+                    // Draw star parallax arrays
+                    val starsCount = if (lowGraphicsMode) 15 else 50
+                    for (i in 0 until starsCount) {
+                        val starX = (i * 473 % engine.arenaWidth.toInt()).toFloat()
+                        val starY = (i * 911 % engine.arenaHeight.toInt()).toFloat()
+                        val starViewport = worldToViewport(Vector2D(starX, starY))
+
+                        if (starViewport.x >= 0 && starViewport.x <= canvasWidth &&
+                            starViewport.y >= 0 && starViewport.y <= canvasHeight
+                        ) {
+                            val pulse = if (i % 2 == 0) (cos(tickState * 0.1f + i) + 1f) / 2f else 1.0f
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.3f + pulse * 0.5f),
+                                radius = 2f + pulse * 3f,
+                                center = starViewport
+                            )
+                        }
+                    }
+
+                    // Draw metal hull panels grid
+                    val panelSpacing = 300f
+                    var lx = fontSpacingAlign(px, centerX, panelSpacing)
+                    val rX = px + centerX + panelSpacing
+                    while (lx <= rX) {
+                        val vx = (lx - px) * scaleFactor + centerX
+                        drawLine(
+                            color = Color(0x1F7E57C2),
+                            start = Offset(vx, 0f),
+                            end = Offset(vx, canvasHeight),
+                            strokeWidth = 1.5f
+                        )
+                        lx += panelSpacing
+                    }
+
+                    val topLeft = worldToViewport(Vector2D(0f, 0f))
+                    val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    drawRect(
+                        color = Color(0xFF9933FF),
+                        topLeft = topLeft,
+                        size = Size(
+                            (bottomRight.x - topLeft.x),
+                            (bottomRight.y - topLeft.y)
+                        ),
+                        style = Stroke(width = 4f)
+                    )
+                }
+
                 ArenaTheme.LAVA_WORLD -> {
+                    // Draw dark ground with orange pulsing hot fractures
                     drawRect(color = Color(0xFF110707))
                     val faultSpacing = 400f
-                    var lx = (px - centerX) - (px - centerX) % faultSpacing
+                    var lx = fontSpacingAlign(px, centerX, faultSpacing)
                     val rX = px + centerX + faultSpacing
                     val pulse = (cos(tickState * 0.05f) + 1.2f) / 2.2f
 
@@ -214,11 +317,26 @@ fun GameScreen(
                         )
                         lx += faultSpacing
                     }
+
+                    // Bounds
+                    val topLeft = worldToViewport(Vector2D(0f, 0f))
+                    val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    drawRect(
+                        color = Color(0xFFFF5500),
+                        topLeft = topLeft,
+                        size = Size(
+                            (bottomRight.x - topLeft.x),
+                            (bottomRight.y - topLeft.y)
+                        ),
+                        style = Stroke(width = 4f)
+                    )
                 }
+
                 ArenaTheme.FROZEN_ARENA -> {
+                    // Light icy backdrop
                     drawRect(color = Color(0xFF04151F))
                     val sheetSpacing = 200f
-                    var lx = (px - centerX) - (px - centerX) % sheetSpacing
+                    var lx = fontSpacingAlign(px, centerX, sheetSpacing)
                     val rX = px + centerX + sheetSpacing
                     val pulse = (sin(tickState * 0.04f) + 1f) / 2f
 
@@ -232,11 +350,26 @@ fun GameScreen(
                         )
                         lx += sheetSpacing
                     }
+
+                    // Bounds
+                    val topLeft = worldToViewport(Vector2D(0f, 0f))
+                    val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    drawRect(
+                        color = Color(0xFF00E5FF),
+                        topLeft = topLeft,
+                        size = Size(
+                            (bottomRight.x - topLeft.x),
+                            (bottomRight.y - topLeft.y)
+                        ),
+                        style = Stroke(width = 4f)
+                    )
                 }
+
                 ArenaTheme.JUNGLE_TEMPLE -> {
+                    // Deep lush vegetation
                     drawRect(color = Color(0xFF031005))
                     val templeSpacing = 250f
-                    var lx = (px - centerX) - (px - centerX) % templeSpacing
+                    var lx = fontSpacingAlign(px, centerX, templeSpacing)
                     val rX = px + centerX + templeSpacing
 
                     while (lx <= rX) {
@@ -249,26 +382,23 @@ fun GameScreen(
                         )
                         lx += templeSpacing
                     }
+
+                    // Bounds
+                    val topLeft = worldToViewport(Vector2D(0f, 0f))
+                    val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    drawRect(
+                        color = Color(0xFF4CAF50),
+                        topLeft = topLeft,
+                        size = Size(
+                            (bottomRight.x - topLeft.x),
+                            (bottomRight.y - topLeft.y)
+                        ),
+                        style = Stroke(width = 4f)
+                    )
                 }
-                ArenaTheme.SPACE_STATION -> {
-                    drawRect(color = Color(0xFF020617))
-                    val starsCount = if (lowGraphicsMode) 15 else 50
-                    for (i in 0 until starsCount) {
-                        val starX = (i * 473 % engine.arenaWidth.toInt()).toFloat()
-                        val starY = (i * 911 % engine.arenaHeight.toInt()).toFloat()
-                        val starViewportX = centerX + (starX - px) * scaleFactor
-                        val starViewportY = centerY + (starY - py) * scaleFactor
-                        if (starViewportX >= 0 && starViewportX <= canvasWidth && starViewportY >= 0 && starViewportY <= canvasHeight) {
-                            val pulse = if (i % 2 == 0) (cos(tickState * 0.1f + i) + 1f) / 2f else 1.0f
-                            drawCircle(
-                                color = Color.White.copy(alpha = 0.3f + pulse * 0.5f),
-                                radius = 2f + pulse * 3f,
-                                center = Offset(starViewportX, starViewportY)
-                            )
-                        }
-                    }
-                }
+
                 ArenaTheme.NEON_GRID -> {
+                    // Dark neon backdrop
                     drawRect(color = Color(0xFF05010B))
                     val gridSpacing = 150f
                     val startX = (px - centerX) - (px - centerX) % gridSpacing
@@ -280,7 +410,7 @@ fun GameScreen(
                     while (x <= endX) {
                         val viewportLineX = (x - px) * scaleFactor + centerX
                         drawLine(
-                            color = Color(0x33FF007F),
+                            color = Color(0x33FF007F), // Neon Pink
                             start = Offset(viewportLineX, 0f),
                             end = Offset(viewportLineX, canvasHeight),
                             strokeWidth = 1f
@@ -292,20 +422,30 @@ fun GameScreen(
                     while (y <= endY) {
                         val viewportLineY = (y - py) * scaleFactor + centerY
                         drawLine(
-                            color = Color(0x33FF007F),
+                            color = Color(0x33FF007F), // Neon Pink
                             start = Offset(0f, viewportLineY),
                             end = Offset(canvasWidth, viewportLineY),
                             strokeWidth = 1f
                         )
                         y += gridSpacing
                     }
-                }
-                else -> {
-                    drawRect(color = Color(0xFF020617))
+
+                    // Bounds
+                    val topLeft = worldToViewport(Vector2D(0f, 0f))
+                    val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    drawRect(
+                        color = Color(0xFFFF007F),
+                        topLeft = topLeft,
+                        size = Size(
+                            (bottomRight.x - topLeft.x),
+                            (bottomRight.y - topLeft.y)
+                        ),
+                        style = Stroke(width = 4f)
+                    )
                 }
             }
 
-            // ========== SAFE ZONE ==========
+            // Draw Battle Royale Safe Zone overlay boundary
             if (engine.gameMode == "Battle Royale") {
                 val boundaryCenter = worldToViewport(engine.safeZoneCenter)
                 val boundRadius = engine.safeZoneRadius * scaleFactor
@@ -315,6 +455,8 @@ fun GameScreen(
                     center = boundaryCenter,
                     style = Stroke(width = 3f)
                 )
+
+                // draw alert tick outline
                 drawCircle(
                     color = Color.White.copy(alpha = (cos(tickState * 0.1f) + 1f) / 2f * 0.6f),
                     radius = boundRadius + 5f,
@@ -323,7 +465,7 @@ fun GameScreen(
                 )
             }
 
-            // ========== HAZARDS ==========
+            // Draw Hazards
             for (hazard in engine.hazards) {
                 val viewportPos = worldToViewport(hazard.position)
                 val rad = hazard.size * scaleFactor
@@ -445,14 +587,16 @@ fun GameScreen(
                 }
             }
 
-            // ========== ORBS ==========
+            // Draw Orbs
             for (orb in engine.orbs) {
                 val viewportPos = worldToViewport(orb.position)
                 val rad = orb.size * scaleFactor
+
                 if (viewportPos.x >= -rad && viewportPos.x <= canvasWidth + rad &&
                     viewportPos.y >= -rad && viewportPos.y <= canvasHeight + rad
                 ) {
                     if (orb.isCelestialOrb) {
+                        // Pulsing, shifting dual halo
                         val pulse = 1f + (sin(tickState * 0.15f) + 1f) / 2f * 0.35f
                         drawCircle(
                             color = orb.color.copy(alpha = 0.18f),
@@ -466,17 +610,20 @@ fun GameScreen(
                             style = Stroke(width = 2.5f * scaleFactor, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), tickState * 0.6f))
                         )
                     } else {
+                        // Outer glow
                         drawCircle(
                             color = orb.color.copy(alpha = 0.25f),
                             radius = rad * 2.2f,
                             center = viewportPos
                         )
                     }
+                    // Inner solid
                     drawCircle(
                         color = orb.color,
                         radius = rad,
                         center = viewportPos
                     )
+                    // Core highlight
                     drawCircle(
                         color = Color.White,
                         radius = rad * 0.4f,
@@ -485,38 +632,42 @@ fun GameScreen(
                 }
             }
 
-            // ========== POWER-UPS ==========
+            // Draw Arena Power-Ups
             for (powerUp in engine.powerUps) {
                 val viewportPos = worldToViewport(powerUp.position)
                 val rad = powerUp.size * scaleFactor
+                
                 if (viewportPos.x >= -rad && viewportPos.x <= canvasWidth + rad &&
                     viewportPos.y >= -rad && viewportPos.y <= canvasHeight + rad
                 ) {
                     val pulse = 1f + (sin(tickState * 0.15f) + 1f) / 2f * 0.25f
                     val sizeGlow = rad * 2.8f * pulse
-
+                    
                     drawCircle(
                         color = powerUp.color.copy(alpha = 0.18f),
                         radius = sizeGlow,
                         center = viewportPos
                     )
+                    
                     drawCircle(
                         color = powerUp.color.copy(alpha = 0.75f),
                         radius = rad * pulse,
                         center = viewportPos,
                         style = Stroke(width = 2.5f * scaleFactor)
                     )
+                    
                     drawCircle(
                         color = powerUp.color,
                         radius = rad * 0.5f,
                         center = viewportPos
                     )
+                    
                     drawCircle(
                         color = Color.White,
                         radius = rad * 0.25f,
                         center = viewportPos
                     )
-
+                    
                     val perkName = when (powerUp.type) {
                         PowerUpType.MAGNET -> "MAGNET"
                         PowerUpType.DOUBLE_POINTS -> "2X PTS"
@@ -525,7 +676,7 @@ fun GameScreen(
                         PowerUpType.GHOST -> "GHOST"
                         PowerUpType.SPEED_BOOST -> "BOOST"
                     }
-                    val textLayout = textMeasurer.measure(
+                    val textLayoutResult = textMeasurer.measure(
                         text = AnnotatedString(perkName),
                         style = TextStyle(
                             color = powerUp.color,
@@ -536,27 +687,29 @@ fun GameScreen(
                         )
                     )
                     drawText(
-                        textLayout,
-                        topLeft = Offset(viewportPos.x - textLayout.size.width / 2f, viewportPos.y - rad * 2.2f)
+                        textLayoutResult,
+                        topLeft = Offset(viewportPos.x - textLayoutResult.size.width / 2f, viewportPos.y - rad * 2.2f)
                     )
                 }
             }
 
-            // ========== SNAKES ==========
+            // Draw Snakes (Body segments & Heads)
             for (snake in engine.snakes) {
                 if (!snake.isAlive) continue
 
-                // Body
+                // Body rendering via segments list (drawn backwards so head sits on top)
                 for (i in snake.body.size - 1 downTo 1 step 2) {
                     val pos = snake.body[i]
                     val viewPos = worldToViewport(pos)
-                    val segmentDiameter = 18f * scaleFactor
+                    val segmentDiameter = 18f * scaleFactor * snake.thicknessFactor
 
                     if (viewPos.x >= -segmentDiameter && viewPos.x <= canvasWidth + segmentDiameter &&
                         viewPos.y >= -segmentDiameter && viewPos.y <= canvasHeight + segmentDiameter
                     ) {
+                        // Vary body diameter from tail to head
                         val scaleRatio = (1f - (i.toFloat() / snake.body.size.toFloat()) * 0.4f)
-                        val rad = (11f * scaleRatio) * scaleFactor
+                        val rad = (11f * scaleRatio * snake.thicknessFactor) * scaleFactor
+
                         val primaryColor = if (snake.activePowerUpType == PowerUpType.GHOST) Color.White.copy(alpha = 0.35f) else snake.primaryColor
                         val secondaryColor = if (snake.activePowerUpType == PowerUpType.GHOST) Color(0xFF90A4AE).copy(alpha = 0.2f) else snake.secondaryColor
 
@@ -571,6 +724,8 @@ fun GameScreen(
                             radius = rad,
                             center = viewPos
                         )
+
+                        // Light shine scale dot
                         drawCircle(
                             color = Color.White.copy(alpha = 0.15f),
                             radius = rad * 0.4f,
@@ -579,9 +734,11 @@ fun GameScreen(
                     }
                 }
 
-                // Head
+                // Render Head
                 val headPos = worldToViewport(snake.position)
-                val headRad = 15f * scaleFactor
+                val headRad = 15f * scaleFactor * snake.thicknessFactor
+
+                // Draw Head Outer Shell
                 val headColor = if (snake.activePowerUpType == PowerUpType.GHOST) Color.White.copy(alpha = 0.45f) else snake.primaryColor
                 drawCircle(
                     color = headColor,
@@ -589,9 +746,13 @@ fun GameScreen(
                     center = headPos
                 )
 
-                // Eyes
+                // Face orientation details
                 val ex = cos(snake.angle.toDouble()).toFloat()
                 val ey = sin(snake.angle.toDouble()).toFloat()
+                val eyesX = headPos.x + ex * headRad * 0.5f
+                val eyesY = headPos.y + ey * headRad * 0.5f
+
+                // Eyes details
                 val leftEyeAngle = snake.angle + 0.4f
                 val rightEyeAngle = snake.angle - 0.4f
                 val leX = headPos.x + cos(leftEyeAngle.toDouble()).toFloat() * headRad * 0.6f
@@ -599,12 +760,15 @@ fun GameScreen(
                 val reX = headPos.x + cos(rightEyeAngle.toDouble()).toFloat() * headRad * 0.6f
                 val reY = headPos.y + sin(rightEyeAngle.toDouble()).toFloat() * headRad * 0.6f
 
-                drawCircle(Color.White, radius = 3.5f * scaleFactor, center = Offset(leX, leY))
-                drawCircle(Color.Black, radius = 1.5f * scaleFactor, center = Offset(leX, leY))
-                drawCircle(Color.White, radius = 3.5f * scaleFactor, center = Offset(reX, reY))
-                drawCircle(Color.Black, radius = 1.5f * scaleFactor, center = Offset(reX, reY))
+                val eyeRadius = 3.5f * scaleFactor * snake.thicknessFactor
+                val pupilRadius = 1.5f * scaleFactor * snake.thicknessFactor
 
-                // Ability rings
+                drawCircle(Color.White, radius = eyeRadius, center = Offset(leX, leY))
+                drawCircle(Color.Black, radius = pupilRadius, center = Offset(leX, leY))
+                drawCircle(Color.White, radius = eyeRadius, center = Offset(reX, reY))
+                drawCircle(Color.Black, radius = pupilRadius, center = Offset(reX, reY))
+
+                // If player shield is active, draw neon forcefield ring
                 if (snake.specialAbilityActive || snake.activePowerUpType == PowerUpType.SHIELD) {
                     drawCircle(
                         color = Color(0xFF00E5FF).copy(alpha = 0.3f + (sin(tickState * 0.2f) + 1f) / 2f * 0.3f),
@@ -613,6 +777,8 @@ fun GameScreen(
                         style = Stroke(width = 3f)
                     )
                 }
+
+                // If magnet active, draw pulsing ring
                 if (snake.activePowerUpType == PowerUpType.MAGNET) {
                     drawCircle(
                         color = Color(0xFFE040FB).copy(alpha = 0.25f + (sin(tickState * 0.22f) + 1f) / 2f * 0.25f),
@@ -621,6 +787,8 @@ fun GameScreen(
                         style = Stroke(width = 2f * scaleFactor, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), tickState * 0.5f))
                     )
                 }
+
+                // If double points active, draw gold shine ring
                 if (snake.activePowerUpType == PowerUpType.DOUBLE_POINTS) {
                     drawCircle(
                         color = Color(0xFFFFEB3B).copy(alpha = 0.25f + (sin(tickState * 0.18f) + 1f) / 2f * 0.25f),
@@ -629,6 +797,8 @@ fun GameScreen(
                         style = Stroke(width = 2.5f)
                     )
                 }
+
+                // If ghost mode active, draw pulsing ring (platinum color)
                 if (snake.activePowerUpType == PowerUpType.GHOST) {
                     drawCircle(
                         color = Color(0xFFB0BEC5).copy(alpha = 0.3f + (sin(tickState * 0.15f) + 1f) / 2f * 0.3f),
@@ -637,6 +807,8 @@ fun GameScreen(
                         style = Stroke(width = 2.5f * scaleFactor, pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 15f), tickState * 0.8f))
                     )
                 }
+
+                // If speed boost active, draw blazing speed ring
                 if (snake.activePowerUpType == PowerUpType.SPEED_BOOST) {
                     drawCircle(
                         color = Color(0xFFFF5722).copy(alpha = 0.4f + (sin(tickState * 0.3f) + 1f) / 2f * 0.4f),
@@ -646,10 +818,12 @@ fun GameScreen(
                     )
                 }
 
-                // Name tag
-                if (headPos.x >= 0 && headPos.x <= canvasWidth && headPos.y >= 0 && headPos.y <= canvasHeight) {
+                // Draw Name Tag label
+                if (headPos.x >= 0 && headPos.x <= canvasWidth &&
+                    headPos.y >= 0 && headPos.y <= canvasHeight
+                ) {
                     val label = if (snake.isPlayer) "${snake.name} (${snake.score})" else snake.name
-                    val textLayout = textMeasurer.measure(
+                    val textLayoutResult = textMeasurer.measure(
                         text = AnnotatedString(label),
                         style = TextStyle(
                             color = Color.White,
@@ -660,28 +834,75 @@ fun GameScreen(
                         )
                     )
                     drawText(
-                        textLayout,
-                        topLeft = Offset(headPos.x - textLayout.size.width / 2f, headPos.y - headRad - 22f)
+                        textLayoutResult,
+                        topLeft = Offset(headPos.x - textLayoutResult.size.width / 2f, headPos.y - headRad - 22f)
                     )
                 }
             }
 
-            // ========== PARTICLES ==========
+            // Draw Cosmos Particles
             if (!lowGraphicsMode) {
                 for (p in engine.particles) {
                     val pView = worldToViewport(p.position)
                     val r = p.size * scaleFactor
-                    if (pView.x >= 0 && pView.x <= canvasWidth && pView.y >= 0 && pView.y <= canvasHeight) {
-                        drawCircle(
-                            color = p.color.copy(alpha = p.alpha),
-                            radius = r,
-                            center = pView
-                        )
+                    if (pView.x >= -50f && pView.x <= canvasWidth + 50f && pView.y >= -50f && pView.y <= canvasHeight + 50f) {
+                        if (p.isStar) {
+                            // Thin sparkling white-core cross
+                            val spikeLength = r * 2.3f
+                            val strokeW = (r * 0.25f).coerceAtLeast(1.5f)
+                            drawLine(
+                                color = Color.White.copy(alpha = p.alpha),
+                                start = Offset(pView.x, pView.y - spikeLength),
+                                end = Offset(pView.x, pView.y + spikeLength),
+                                strokeWidth = strokeW
+                            )
+                            drawLine(
+                                color = Color.White.copy(alpha = p.alpha),
+                                start = Offset(pView.x - spikeLength, pView.y),
+                                end = Offset(pView.x + spikeLength, pView.y),
+                                strokeWidth = strokeW
+                            )
+                            // Outer cosmic halo glow
+                            drawCircle(
+                                color = p.color.copy(alpha = p.alpha * 0.45f),
+                                radius = r * 1.5f,
+                                center = pView
+                            )
+                            drawCircle(
+                                color = Color.White.copy(alpha = p.alpha * 0.9f),
+                                radius = r * 0.45f,
+                                center = pView
+                            )
+                        } else if (p.isNebula) {
+                            // Fluffy expanding gaseous space dust puff
+                            drawCircle(
+                                color = p.color.copy(alpha = p.alpha * 0.08f),
+                                radius = r * 3.2f,
+                                center = pView
+                            )
+                            drawCircle(
+                                color = p.color.copy(alpha = p.alpha * 0.28f),
+                                radius = r * 1.8f,
+                                center = pView
+                            )
+                            drawCircle(
+                                color = Color.White.copy(alpha = p.alpha * 0.15f),
+                                radius = r * 0.7f,
+                                center = pView
+                            )
+                        } else {
+                            // Standard micro-spark particle
+                            drawCircle(
+                                color = p.color.copy(alpha = p.alpha),
+                                radius = r,
+                                center = pView
+                            )
+                        }
                     }
                 }
             }
 
-            // ========== FLOATING TEXTS ==========
+            // Draw Floating texts
             for (txt in engine.floatingTexts) {
                 val viewPos = worldToViewport(txt.position)
                 if (viewPos.x >= 0 && viewPos.x <= canvasWidth && viewPos.y >= 0 && viewPos.y <= canvasHeight) {
@@ -704,14 +925,14 @@ fun GameScreen(
             }
         }
 
-        // ========== HUD ==========
+        // 2. HUD Interface Elements Overlay
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
         ) {
-            // Pause button
+            // PAUSE BUTTON
             IconButton(
                 onClick = { isPaused = true },
                 modifier = Modifier
@@ -724,12 +945,13 @@ fun GameScreen(
                 Icon(Icons.Default.Pause, contentDescription = "Pause Game", tint = Color(0xFF00FFCC))
             }
 
-            // Killfeed
+            // DYNAMIC HIGH-VISIBILITY KILLFEED
             val currentKills = remember(tickState) {
                 synchronized(engine.killEvents) {
                     engine.killEvents.toList()
                 }
             }
+
             Column(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -759,9 +981,9 @@ fun GameScreen(
                                     .clip(RoundedCornerShape(2.dp))
                                     .background(
                                         if (kill.killerName == player?.name || kill.victimName == player?.name) {
-                                            Color(0xFF00FFCC)
+                                            Color(0xFF00FFCC) // Dynamic glowing highlight on player actions
                                         } else {
-                                            Color(0xFFFF3366)
+                                            Color(0xFFFF3366) // Combat notification crimson/magenta
                                         }
                                     )
                             )
@@ -783,6 +1005,7 @@ fun GameScreen(
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f, fill = false)
                                     )
+                                    
                                     Text(
                                         text = kill.weaponOrCause,
                                         color = Color(0xFFFFCC00),
@@ -794,6 +1017,7 @@ fun GameScreen(
                                         modifier = Modifier.padding(horizontal = 2.dp)
                                     )
                                 }
+                                
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -824,7 +1048,7 @@ fun GameScreen(
                 }
             }
 
-            // Top center info
+            // SURVIVORS REMAINING DETAILS / BATTLE ROYALE ALERTS
             Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -849,7 +1073,7 @@ fun GameScreen(
                 )
             }
 
-            // Weather event
+            // ACTIVE MAP EVENT OVERLAY
             if (engine.activeWeather != "NORMAL") {
                 Box(
                     modifier = Modifier
@@ -888,41 +1112,138 @@ fun GameScreen(
                 }
             }
 
-            // Leaderboard (top right)
-            Card(
+            // LIVE SCOREBOARD & NETWORK TELEMETRY PANEL
+            Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .width(130.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.65f)),
-                border = BorderStroke(1.dp, Color(0x22FFFFFF))
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.End
             ) {
-                Column(
-                    modifier = Modifier.padding(8.dp)
+                // Live Network Telemetry
+                val connStatus by viewModel.multiplayerManager.connectionStatus.collectAsState()
+                val pingVal by viewModel.multiplayerManager.pingMs.collectAsState()
+                val packetLossVal by viewModel.multiplayerManager.packetLoss.collectAsState()
+
+                val statusLabel: String
+                val statusColor: Color
+                when (connStatus) {
+                    ConnectionStatus.OFFLINE -> {
+                        statusLabel = "LOCAL SYNCS"
+                        statusColor = Color.Gray
+                    }
+                    ConnectionStatus.CONNECTING -> {
+                        statusLabel = "CONNECTING"
+                        statusColor = Color(0xFFFF9900)
+                    }
+                    ConnectionStatus.HANDSHARING -> {
+                        statusLabel = "HANDSHAKE"
+                        statusColor = Color(0xFFCC00FF)
+                    }
+                    ConnectionStatus.CONNECTED -> {
+                        statusLabel = "LIVE NET"
+                        statusColor = Color(0xFF00FFCC)
+                    }
+                    ConnectionStatus.DISCONNECTED -> {
+                        statusLabel = "DISCONNECTED"
+                        statusColor = Color(0xFFFF3366)
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.7f)),
+                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f)),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(
-                        "GRID LEADERS",
-                        color = Color(0xFFFF9900),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Black,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    engine.rankingList.take(5).forEachIndexed { i, record ->
-                        val label = if (record.first.contains("You")) "YOU" else record.first.take(8)
-                        val col = if (record.first.contains("You")) Color(0xFF00FFCC) else Color.LightGray
+                    Column(
+                        modifier = Modifier.padding(6.dp)
+                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text("${i + 1}. $label", color = col, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                            Text("${record.second}", color = Color.White, fontSize = 8.sp)
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(statusColor)
+                            )
+                            Text(
+                                text = statusLabel,
+                                color = statusColor,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(2.dp))
+                        
+                        Text(
+                            text = "REGION: ${viewModel.multiplayerManager.selectedRegion.name.take(6)}",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 7.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+
+                        if (connStatus == ConnectionStatus.CONNECTED) {
+                            Text(
+                                text = "LATENCY: ${pingVal}ms",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 7.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            if (packetLossVal > 0f) {
+                                Text(
+                                    text = "LOSS: ${String.format("%.1f%%", packetLossVal * 100f)}",
+                                    color = Color(0xFFFF3366),
+                                    fontSize = 7.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // GRID LEADERS
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                    border = BorderStroke(1.dp, Color(0x22FFFFFF))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(8.dp)
+                    ) {
+                        Text(
+                            "GRID LEADERS",
+                            color = Color(0xFFFF9900),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        engine.rankingList.take(5).forEachIndexed { i, record ->
+                            val label = if (record.first.contains("You")) "YOU" else record.first.take(8)
+                            val col = if (record.first.contains("You")) Color(0xFF00FFCC) else Color.LightGray
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("${i + 1}. $label", color = col, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                Text("${record.second}", color = Color.White, fontSize = 8.sp)
+                            }
                         }
                     }
                 }
             }
 
-            // Safe zone warning
+            // DANGER COLLAPSE WARNING (Outer ring warning)
             if (engine.gameMode == "Battle Royale" && player?.isAlive == true) {
                 val dist = player.position.distance(engine.safeZoneCenter)
                 if (dist > engine.safeZoneRadius) {
@@ -934,7 +1255,7 @@ fun GameScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = "DANGER: REFUGE ZONE COLLAPSING!",
+                            text = "DANGER: REFUGING SAFE ZONE COLLAPSE!",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -944,7 +1265,7 @@ fun GameScreen(
                 }
             }
 
-            // Score / Length
+            // SCORE / LENGTH HUD
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -968,7 +1289,7 @@ fun GameScreen(
                 )
             }
 
-            // Power-up banner
+            // ACTIVE POWER-UP HUD BANNER OVERLAY
             if (player?.activePowerUpType != null) {
                 val powerUpType = player.activePowerUpType!!
                 val label = when (powerUpType) {
@@ -989,7 +1310,7 @@ fun GameScreen(
                 }
                 val secondsLeft = (player.powerUpTimer / 60f).coerceAtLeast(0f)
                 val formattedTime = String.format("%.1f s", secondsLeft)
-
+                
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -1018,7 +1339,7 @@ fun GameScreen(
                 }
             }
 
-            // Joystick
+            // VIRTUAL FLOATING JOYSTICK
             Box(
                 modifier = Modifier
                     .align(if (joystickOnRightSide) Alignment.BottomEnd else Alignment.BottomStart)
@@ -1032,7 +1353,7 @@ fun GameScreen(
                 }
             }
 
-            // Ability + Boost buttons
+            // BOOST / ACTION BUTTONS PANEL
             Row(
                 modifier = Modifier
                     .align(if (joystickOnRightSide) Alignment.BottomStart else Alignment.BottomEnd)
@@ -1043,9 +1364,9 @@ fun GameScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Ability button
+                // SPECIAL SELECTABLE TACTICAL COMBAT ABILITY BUTTON
                 val abilityType = player?.activeAbilityType ?: "SHIELD"
-                val cdMax = when (abilityType) {
+                val cdMax = when(abilityType) {
                     "SHIELD" -> 540f
                     "FREEZE_PULSE" -> 600f
                     "EMP_BLAST" -> 660f
@@ -1053,7 +1374,7 @@ fun GameScreen(
                     "GHOST_PHASE" -> 540f
                     else -> 1f
                 }
-                val actMax = when (abilityType) {
+                val actMax = when(abilityType) {
                     "SHIELD" -> 180f
                     "SPEED_BURST" -> 100f
                     "GHOST_PHASE" -> 180f
@@ -1061,7 +1382,7 @@ fun GameScreen(
                 }
                 val cooldownFraction = if (player != null) {
                     if (player.specialAbilityActive) {
-                        if (abilityType == "FREEZE_PULSE" || abilityType == "EMP_BLAST") 0f
+                        if (abilityType == "FREEZE_PULSE" || abilityType == "EMP_BLAST") 0f 
                         else player.abilityActiveDuration.toFloat() / actMax
                     } else if (player.abilityCooldownRemaining > 0) {
                         player.abilityCooldownRemaining.toFloat() / cdMax
@@ -1071,8 +1392,8 @@ fun GameScreen(
                 } else {
                     0f
                 }
-
-                val abilityIcon = when (abilityType) {
+                
+                val abilityIcon = when(abilityType) {
                     "SHIELD" -> Icons.Default.Shield
                     "FREEZE_PULSE" -> Icons.Default.AcUnit
                     "EMP_BLAST" -> Icons.Default.FlashOn
@@ -1080,7 +1401,7 @@ fun GameScreen(
                     "GHOST_PHASE" -> Icons.Default.Widgets
                     else -> Icons.Default.Star
                 }
-                val abColor = when (abilityType) {
+                val abColor = when(abilityType) {
                     "SHIELD" -> Color(0xFF00E5FF)
                     "FREEZE_PULSE" -> Color(0xFF80D8FF)
                     "EMP_BLAST" -> Color(0xFFFFEE55)
@@ -1122,13 +1443,13 @@ fun GameScreen(
                     }
                     Icon(
                         imageVector = abilityIcon,
-                        contentDescription = "Activate Special Ability",
+                        contentDescription = "Activate Tactical Special Ability",
                         tint = if (player?.specialAbilityActive == true) abColor else Color.White,
                         modifier = Modifier.size(26.dp)
                     )
                 }
 
-                // Boost button
+                // DYNAMIC BOOST / SPEED ACTION BUTTON
                 Box(
                     modifier = Modifier
                         .size(72.dp)
@@ -1158,7 +1479,7 @@ fun GameScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Speed,
-                        contentDescription = "Boost",
+                        contentDescription = "DASH BOOST ACTIVE",
                         tint = if (isBoosting) Color.Black else Color.White,
                         modifier = Modifier.size(34.dp)
                     )
@@ -1166,115 +1487,118 @@ fun GameScreen(
             }
         }
 
-        // ========== GAME OVER OVERLAY ==========
-        if (engine.isGameOver) {
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
-                exit = fadeOut()
+        // 3. GAME OVER OVERLAY SCREEN (Full modal overlay card)
+        AnimatedVisibility(
+            visible = engine.isGameOver,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
+            exit = fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
+                GlassmorphicCard(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.85f)),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth(0.9f)
+                        .padding(16.dp),
+                    borderColor = Color(0xFFFF3366).copy(alpha = 0.5f),
+                    backgroundColor = Color(0xFA0F1426),
+                    glowColor = Color(0xFFFF3366)
                 ) {
-                    GlassmorphicCard(
-                        modifier = Modifier
-                            .fillMaxWidth(0.9f)
-                            .padding(16.dp),
-                        borderColor = Color(0xFFFF3366).copy(alpha = 0.5f),
-                        backgroundColor = Color(0xFA0F1426),
-                        glowColor = Color(0xFFFF3366)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(
+                        Icon(
+                            imageVector = if (engine.rankingPlacement == 1) Icons.Default.EmojiEvents else Icons.Default.Cancel,
+                            contentDescription = "Completed",
+                            tint = if (engine.rankingPlacement == 1) Color(0xFFFFFF33) else Color(0xFFFF3366),
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Text(
+                            text = if (engine.rankingPlacement == 1) "VICTORY ROYALE" else "SLITHER CRASH!",
+                            color = if (engine.rankingPlacement == 1) Color(0xFFFFFF33) else Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 2.sp
+                        )
+                        Text(
+                            text = if (engine.rankingPlacement == 1) "YOU ARE THE LAST SURVIVOR" else "GAME OVER",
+                            color = Color.Gray,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Match stats row
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            Icon(
-                                imageVector = if (engine.rankingPlacement == 1) Icons.Default.EmojiEvents else Icons.Default.Cancel,
-                                contentDescription = "Completed",
-                                tint = if (engine.rankingPlacement == 1) Color(0xFFFFFF33) else Color(0xFFFF3366),
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = if (engine.rankingPlacement == 1) "VICTORY ROYALE" else "SLITHER CRASH!",
-                                color = if (engine.rankingPlacement == 1) Color(0xFFFFFF33) else Color.White,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontFamily = FontFamily.Monospace,
-                                letterSpacing = 2.sp
-                            )
-                            Text(
-                                text = if (engine.rankingPlacement == 1) "YOU ARE THE LAST SURVIVOR" else "GAME OVER",
-                                color = Color.Gray,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
+                            StatSummaryBadge("PLACEMENT", "${engine.rankingPlacement} / ${engine.rankingPlacement + engine.alivePlayersCount}", Color.LightGray)
+                            StatSummaryBadge("SCORE", "${player?.score ?: 0}", Color(0xFF00FFCC))
+                            StatSummaryBadge("KILLS", "${engine.totalKills}", Color(0xFFFF5252))
+                        }
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
 
+                        // Rewards earned
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF1E293B))
+                                .padding(12.dp)
+                        ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                StatSummaryBadge("PLACEMENT", "${engine.rankingPlacement} / ${engine.rankingPlacement + engine.alivePlayersCount}", Color.LightGray)
-                                StatSummaryBadge("SCORE", "${player?.score ?: 0}", Color(0xFF00FFCC))
-                                StatSummaryBadge("KILLS", "${engine.totalKills}", Color(0xFFFF5252))
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF1E293B))
-                                    .padding(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("BOUNTIES RECOVERED", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        Text("+${engine.totalXpEarned} XP", color = Color(0xFF00FFCC), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                        Text("+${engine.totalCoinsEarned} Coins", color = Color(0xFFFFFF33), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    }
+                                Text("BOUNTIES RECOVERED", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("+${engine.totalXpEarned} XP", color = Color(0xFF00FFCC), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("+${engine.totalCoinsEarned} Coins", color = Color(0xFFFFFF33), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                             }
+                        }
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
 
-                            Button(
+                        // Action button
+                        Button(
+                            onClick = {
+                                viewModel.finishActiveGameAndSave()
+                                onNavigateBack()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("claim_rewards_exit")
+                        ) {
+                            Text("CLAIM BOUNTIES & SECURE", color = Color.Black, fontWeight = FontWeight.Black)
+                        }
+
+                        // Casual Mode Free quick Respawn option
+                        if (engine.gameMode == "Casual") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextButton(
                                 onClick = {
-                                    viewModel.finishActiveGameAndSave()
-                                    onNavigateBack()
+                                    engine.resetEngine()
+                                    engine.isGameOver = false
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp)
-                                    .testTag("claim_rewards_exit")
+                                modifier = Modifier.testTag("casual_quick_respawn")
                             ) {
-                                Text("CLAIM BOUNTIES & SECURE", color = Color.Black, fontWeight = FontWeight.Black)
-                            }
-
-                            if (engine.gameMode == "Casual") {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                TextButton(
-                                    onClick = {
-                                        engine.resetEngine()
-                                        engine.isGameOver = false
-                                    },
-                                    modifier = Modifier.testTag("casual_quick_respawn")
-                                ) {
-                                    Text("QUICK RESPAWN NOW (FREE)", color = Color.LightGray, fontWeight = FontWeight.SemiBold)
-                                }
+                                Text("QUICK RESPAWN NOW (FREE)", color = Color.LightGray, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -1282,13 +1606,17 @@ fun GameScreen(
             }
         }
 
-        // ========== PAUSE OVERLAY ==========
-        if (isPaused && !engine.isGameOver) {
+        // 4. GAME PAUSED OVERLAY SCREEN (Full modal overlay)
+        AnimatedVisibility(
+            visible = isPaused && !engine.isGameOver,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.85f))
-                    .clickable(enabled = true, onClick = {})
+                    .clickable(enabled = true, onClick = {}) // block touch pass-through
                     .testTag("game_pause_overlay"),
                 contentAlignment = Alignment.Center
             ) {
@@ -1306,6 +1634,7 @@ fun GameScreen(
                             .padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Header Box with pause emblem
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
@@ -1338,13 +1667,17 @@ fun GameScreen(
                         Spacer(modifier = Modifier.height(20.dp))
 
                         if (!isSettingsOpenInPause) {
+                            // MAIN PAUSE CONTROLS
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
+                                // 1. Resume Match
                                 Button(
                                     onClick = { isPaused = false },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF00FFCC)
+                                    ),
                                     shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1356,10 +1689,17 @@ fun GameScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black)
-                                        Text("RESUME CHRONOLOGY", color = Color.Black, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                                        Text(
+                                            "RESUME CHRONOLOGY",
+                                            color = Color.Black,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace,
+                                            letterSpacing = 1.sp
+                                        )
                                     }
                                 }
 
+                                // 2. Restart Match
                                 Button(
                                     onClick = {
                                         engine.resetEngine()
@@ -1381,10 +1721,16 @@ fun GameScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF00FFCC))
-                                        Text("REPLAY ARENA MATCH", fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                                        Text(
+                                            "REPLAY ARENA MATCH",
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace,
+                                            letterSpacing = 1.sp
+                                        )
                                     }
                                 }
 
+                                // 3. Settings Configurator
                                 Button(
                                     onClick = { isSettingsOpenInPause = true },
                                     colors = ButtonDefaults.buttonColors(
@@ -1403,7 +1749,12 @@ fun GameScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
-                                        Text("CALIBRATE SYSTEM SETTINGS", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                                        Text(
+                                            "CALIBRATE SYSTEM SETTINGS",
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                            letterSpacing = 1.sp
+                                        )
                                     }
                                 }
 
@@ -1411,6 +1762,7 @@ fun GameScreen(
                                 HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                                 Spacer(modifier = Modifier.height(8.dp))
 
+                                // 4. Return to Main Menu
                                 TextButton(
                                     onClick = {
                                         isPaused = false
@@ -1439,7 +1791,7 @@ fun GameScreen(
                                 }
                             }
                         } else {
-                            // Settings panel
+                            // SETTINGS INTERFACE PANEL
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1463,25 +1815,88 @@ fun GameScreen(
                                     )
                                 }
 
-                                SettingRow(
-                                    title = "CYBER-HAPTICS",
-                                    description = "Tactile shockwaves on collisions/kills",
-                                    checked = viewModel.hapticsEnabled,
-                                    onCheckedChange = { viewModel.hapticsEnabled = it }
-                                )
-                                SettingRow(
-                                    title = "CONTROLLER REVERSAL",
-                                    description = "Relocate Joystick to right side",
-                                    checked = joystickOnRightSide,
-                                    onCheckedChange = { joystickOnRightSide = it }
-                                )
-                                SettingRow(
-                                    title = "LOW GRAPHICS MODE",
-                                    description = "Optimize FPS for low power devices",
-                                    checked = lowGraphicsMode,
-                                    onCheckedChange = { lowGraphicsMode = it }
-                                )
+                                // 1. Haptic Preference Toggle
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0x06FFFFFF))
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("CYBER-HAPTICS", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                        Text("Tactile shockwaves on collisions/kills", color = Color.Gray, fontSize = 8.5.sp)
+                                    }
+                                    Switch(
+                                        checked = viewModel.hapticsEnabled,
+                                        onCheckedChange = { viewModel.hapticsEnabled = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color(0xFF00FFCC),
+                                            checkedTrackColor = Color(0x3300FFCC),
+                                            uncheckedThumbColor = Color.Gray,
+                                            uncheckedTrackColor = Color.Black
+                                        ),
+                                        modifier = Modifier.testTag("setting_toggle_haptics")
+                                    )
+                                }
 
+                                // 2. Right-Handed Joystick Toggle
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0x06FFFFFF))
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("CONTROLLER REVERSAL", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                        Text("Relocate Joystick to right side", color = Color.Gray, fontSize = 8.5.sp)
+                                    }
+                                    Switch(
+                                        checked = joystickOnRightSide,
+                                        onCheckedChange = { joystickOnRightSide = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color(0xFF00FFCC),
+                                            checkedTrackColor = Color(0x3300FFCC),
+                                            uncheckedThumbColor = Color.Gray,
+                                            uncheckedTrackColor = Color.Black
+                                        ),
+                                        modifier = Modifier.testTag("setting_toggle_controls")
+                                    )
+                                }
+
+                                // 3. Graphics Mode Optimization Toggle
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0x06FFFFFF))
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("LOW GRAPHICS MODE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                        Text("Optimize FPS for low power devices", color = Color.Gray, fontSize = 8.5.sp)
+                                    }
+                                    Switch(
+                                        checked = lowGraphicsMode,
+                                        onCheckedChange = { lowGraphicsMode = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color(0xFF00FFCC),
+                                            checkedTrackColor = Color(0x3300FFCC),
+                                            uncheckedThumbColor = Color.Gray,
+                                            uncheckedTrackColor = Color.Black
+                                        ),
+                                        modifier = Modifier.testTag("setting_toggle_graphics")
+                                    )
+                                }
+
+                                // 4. Mock Volume slider for extra fidelity setting
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1536,47 +1951,12 @@ fun GameScreen(
     }
 }
 
-// ---------- Helper Composables ----------
-
 @Composable
-private fun SettingRow(
-    title: String,
-    description: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x06FFFFFF))
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column {
-            Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-            Text(description, color = Color.Gray, fontSize = 8.5.sp)
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color(0xFF00FFCC),
-                checkedTrackColor = Color(0x3300FFCC),
-                uncheckedThumbColor = Color.Gray,
-                uncheckedTrackColor = Color.Black
-            )
-        )
-    }
-}
-
-@Composable
-fun StatSummaryBadge(label: String, value: String, accentColor: Color) {
+fun StatSummaryBadge(label: String, valStr: String, AccentColor: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(value, color = accentColor, fontSize = 18.sp, fontWeight = FontWeight.Black)
+        Text(valStr, color = AccentColor, fontSize = 18.sp, fontWeight = FontWeight.Black)
     }
 }
 

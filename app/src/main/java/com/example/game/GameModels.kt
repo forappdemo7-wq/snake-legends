@@ -72,7 +72,10 @@ data class Snake(
     var freezeTimer: Int = 0,
     var isEmped: Boolean = false,
     var empTimer: Int = 0
-)
+) {
+    val thicknessFactor: Float
+        get() = (1.0f + kotlin.math.sqrt(score.toFloat().coerceAtLeast(0f)) * 0.035f).coerceAtMost(3.5f)
+}
 
 data class Orb(
     val id: String,
@@ -90,7 +93,10 @@ data class Particle(
     val color: Color,
     var alpha: Float = 1.0f,
     val fadeSpeed: Float = 0.04f,
-    val size: Float = 8f
+    val size: Float = 8f,
+    val isStar: Boolean = false,
+    val isNebula: Boolean = false,
+    val rotationAngle: Float = 0f
 )
 
 data class FloatingText(

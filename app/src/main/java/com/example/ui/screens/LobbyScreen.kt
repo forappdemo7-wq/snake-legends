@@ -1,11 +1,13 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,23 +18,31 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.game.*
-import com.example.ui.components.GlassmorphicCard
-import com.example.ui.components.GlowButton
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Modern, clean colour system
+val Background = Color(0xFF0B1020)
+val Surface = Color(0xFF151C30)
+val Primary = Color(0xFF3B82F6)
+val Secondary = Color(0xFF8B5CF6)
+val Success = Color(0xFF22C55E)
+val Danger = Color(0xFFEF4444)
+val TextWhite = Color.White
+val TextGray = Color(0xFFB0B8C1)
+val TextLight = Color(0xFF6B7280)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LobbyScreen(
     viewModel: GameViewModel,
@@ -53,10 +63,9 @@ fun LobbyScreen(
     var privateRoomCode by remember { mutableStateOf("") }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var editedName by remember { mutableStateOf("") }
-    var activeLobbyTab by remember { mutableStateOf("LOBBY") }
-    var chatTextInput by remember { mutableStateOf("") }
+    var showPrivateRoomDialog by remember { mutableStateOf(false) }
+    var showMultiplayerSettings by remember { mutableStateOf(false) }
 
-    // Derived states for performance
     val rankTier by derivedStateOf { getRankTier(userProfile?.rankedScore ?: 0) }
     val xpProgress by derivedStateOf {
         val level = userProfile?.level ?: 1
@@ -73,127 +82,26 @@ fun LobbyScreen(
     }
 
     DisposableEffect(Unit) {
-        onDispose {
+        onDispose { mpManager.disconnect() }
+    }
+
+    LaunchedEffect(selectedMode) {
+        if (selectedMode != "Private Room" && mpStatus == ConnectionStatus.CONNECTED) {
             mpManager.disconnect()
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF030712))
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        // Decorative background circles
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawCircle(Color(0x0E00FFCC), radius = 300f, center = Offset(0f, 300f))
-            drawCircle(Color(0x0E9933FF), radius = 400f, center = Offset(size.width, size.height - 200f))
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Header
-            LobbyHeader(userProfile, viewModel)
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Player Profile Card
-            userProfile?.let { profile ->
-                PlayerProfileCard(
-                    profile = profile,
-                    rankTier = rankTier,
-                    xpProgress = xpProgress,
-                    onEditNameClick = {
-                        editedName = profile.username
-                        showEditNameDialog = true
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Navigation Links
-            NavigationLinks(
-                onNavigateToShop = onNavigateToShop,
-                onNavigateToClans = onNavigateToClans,
-                onNavigateToLeaderboard = onNavigateToLeaderboard
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Tabs: Play Grid / Missions
-            LobbyTabs(
-                activeTab = activeLobbyTab,
-                onTabSelected = { activeLobbyTab = it }
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            when (activeLobbyTab) {
-                "LOBBY" -> {
-                    // Class Selector
-                    TacticalClassSelector(
-                        selectedClass = selectedClass,
-                        onClassSelected = { viewModel.selectedAbility.value = it }
-                    )
-
-                    // Arena Theme Selector
-                    ArenaThemeSelector(
-                        selectedTheme = selectedTheme,
-                        onThemeSelected = { selectedTheme = it }
-                    )
-
-                    // Multiplayer Settings
-                    MultiplayerSettingsCard(viewModel)
-
-                    // Game Mode Selector
-                    GameModeSelector(
-                        selectedMode = selectedMode,
-                        onModeSelected = { selectedMode = it }
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Private Room Extra Controls
-                    if (selectedMode == "Private Room") {
-                        PrivateRoomControls(
-                            privateRoomCode = privateRoomCode,
-                            onCodeChange = { privateRoomCode = it },
-                            onGenerateCode = {
-                                val prefixes = listOf("SNAKE", "CYBER", "VIPER", "COBRA", "ARENA", "NEON", "KODEX", "SLITHR")
-                                privateRoomCode = "${prefixes.random()}-${(100..999).random()}"
-                            },
-                            mpManager = mpManager,
-                            mpStatus = mpStatus,
-                            userProfile = userProfile,
-                            chatTextInput = chatTextInput,
-                            onChatTextChange = { chatTextInput = it },
-                            onSendMessage = {
-                                if (chatTextInput.isNotBlank()) {
-                                    mpManager.broadcastChatMessage(chatTextInput)
-                                    chatTextInput = ""
-                                }
-                            }
-                        )
-                    }
-
-                    // Start Game Button
-                    GlowButton(
-                        text = "SLITHER NOW",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(58.dp),
-                        glowColor = when (selectedMode) {
-                            "Ranked" -> Color(0xFFFF9900)
-                            "Battle Royale" -> Color(0xFFFF3366)
-                            else -> Color(0xFF00FFCC)
-                        },
-                        tag = "start_game_launcher"
-                    ) {
+    Scaffold(
+        containerColor = Background,
+        bottomBar = {
+            // Sticky primary CTA
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Background,
+                shadowElevation = 8.dp
+            ) {
+                Button(
+                    onClick = {
                         val finalCode = if (selectedMode == "Private Room") {
                             if (privateRoomCode.isBlank()) {
                                 val prefixes = listOf("SNAKE", "CYBER", "VIPER", "COBRA", "ARENA", "NEON", "KODEX", "SLITHR")
@@ -202,29 +110,188 @@ fun LobbyScreen(
                                 code
                             } else privateRoomCode
                         } else ""
+
                         if (selectedMode == "Private Room" && mpStatus == ConnectionStatus.CONNECTED) {
                             mpManager.broadcastStartMatchTrigger()
                         }
                         viewModel.startNewGame(selectedMode, selectedTheme, finalCode)
-                        if (selectedMode == "Private Room") {
-                            mpManager.disconnect()
+                        if (selectedMode == "Private Room") mpManager.disconnect()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(72.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Primary,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "START MATCH",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // 1. PROFILE HEADER
+            item(key = "header") {
+                ProfileHeaderSection(
+                    userProfile = userProfile,
+                    rankTier = rankTier,
+                    xpProgress = xpProgress,
+                    onEditNameClick = {
+                        editedName = userProfile?.username ?: ""
+                        showEditNameDialog = true
+                    }
+                )
+            }
+
+            // 2. PLAY NOW
+            item(key = "play_now_title") {
+                SectionTitle("PLAY NOW")
+            }
+
+            item(key = "game_modes") {
+                GameModeRow(
+                    selectedMode = selectedMode,
+                    onModeSelected = { selectedMode = it }
+                )
+            }
+
+            item(key = "arena_themes") {
+                ArenaThemeRow(
+                    selectedTheme = selectedTheme,
+                    onThemeSelected = { selectedTheme = it }
+                )
+            }
+
+            item(key = "tactical_class") {
+                TacticalClassRow(
+                    selectedClass = selectedClass,
+                    onClassSelected = { viewModel.selectedAbility.value = it }
+                )
+            }
+
+            // Network settings link
+            item(key = "multiplayer_settings") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { showMultiplayerSettings = true }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Network Settings",
+                            tint = TextGray,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Network Settings", color = TextGray, fontSize = 14.sp)
+                    }
+                }
+            }
+
+            if (selectedMode == "Private Room") {
+                item(key = "private_room") {
+                    PrivateRoomQuickCard(
+                        privateRoomCode = privateRoomCode,
+                        mpStatus = mpStatus,
+                        onOpenRoom = { showPrivateRoomDialog = true },
+                        onGenerateCode = {
+                            val prefixes = listOf("SNAKE", "CYBER", "VIPER", "COBRA", "ARENA", "NEON", "KODEX", "SLITHR")
+                            privateRoomCode = "${prefixes.random()}-${(100..999).random()}"
+                        }
+                    )
+                }
+            }
+
+            // 3. EVENTS
+            item(key = "events_title") {
+                SectionTitle("EVENTS")
+            }
+
+            item(key = "battle_pass") {
+                BattlePassTrack(
+                    bpLevel = ((userProfile?.level ?: 1) - 1).coerceAtLeast(1),
+                    onClaimReward = { tierNum, rewardDesc ->
+                        when (tierNum) {
+                            1 -> viewModel.earnFreeCoins(200)
+                            2 -> viewModel.buyCosmetic("Glow Cyber", "Skin", 0, {}, {})
+                            3 -> viewModel.earnFreeCoins(600)
+                            4 -> viewModel.buyCosmetic("Space Wraith", "Skin", 0, {}, {})
+                            5 -> viewModel.buyCosmetic("Meteor Trail", "Trail", 0, {}, {})
                         }
                     }
+                )
+            }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+            item(key = "daily_missions") {
+                MissionList(
+                    title = "Daily Missions",
+                    missions = listOf(
+                        "Inhale 12 Super Orbs" to true,
+                        "Activate Ability 5 times" to false,
+                        "Play 1 Ranked match" to true
+                    )
+                )
+            }
 
-                    // Match History
-                    MatchHistory(matchRecords = matchRecords)
-                }
+            item(key = "weekly_missions") {
+                MissionList(
+                    title = "Weekly Missions",
+                    missions = listOf(
+                        "Earn 1500 XP" to false,
+                        "Defeat 5 opponents in Royale" to true,
+                        "Reach Silver rank" to false
+                    )
+                )
+            }
 
-                "MISSIONS" -> {
-                    MissionsAndBattlePass(userProfile, viewModel)
-                }
+            // 4. SOCIAL
+            item(key = "social_title") {
+                SectionTitle("SOCIAL")
+            }
+
+            item(key = "social_grid") {
+                SocialGrid(
+                    onShop = onNavigateToShop,
+                    onClan = onNavigateToClans,
+                    onLeaderboard = onNavigateToLeaderboard
+                )
+            }
+
+            // 5. MATCH HISTORY
+            item(key = "history_title") {
+                SectionTitle("MATCH HISTORY")
+            }
+
+            item(key = "match_history") {
+                MatchHistorySection(matchRecords = matchRecords)
             }
         }
     }
 
-    // Edit Name Dialog
+    // Dialogs
     if (showEditNameDialog) {
         EditNameDialog(
             currentName = editedName,
@@ -239,1247 +306,982 @@ fun LobbyScreen(
             onDismiss = { showEditNameDialog = false }
         )
     }
-}
 
-// ========== Header ==========
-@Composable
-private fun LobbyHeader(
-    userProfile: com.example.data.UserProfile?,
-    viewModel: GameViewModel
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                text = "SNAKE",
-                color = Color.White,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.ExtraBold,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 4.sp
-            )
-            Text(
-                text = "LEGENDS",
-                color = Color(0xFF00FFCC),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 6.sp,
-                modifier = Modifier.offset(y = (-6).dp)
-            )
-        }
+    if (showPrivateRoomDialog) {
+        PrivateRoomDialog(
+            initialCode = privateRoomCode,
+            mpManager = mpManager,
+            mpStatus = mpStatus,
+            userProfile = userProfile,
+            onCodeChange = { privateRoomCode = it },
+            onDismiss = { showPrivateRoomDialog = false }
+        )
+    }
 
-        // Coins
-        userProfile?.let { profile ->
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0x1F1E293B))
-                    .border(1.dp, Color(0xFFFFFF33).copy(alpha = 0.4f), RoundedCornerShape(20.dp))
-                    .clickable { viewModel.earnFreeCoins(200) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MonetizationOn,
-                        contentDescription = "Coins",
-                        tint = Color(0xFFFFFF33),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = "${profile.coins} COINS",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-            }
-        }
+    if (showMultiplayerSettings) {
+        MultiplayerSettingsSheet(
+            mpManager = mpManager,
+            onDismiss = { showMultiplayerSettings = false }
+        )
     }
 }
 
-// ========== Player Profile Card ==========
+// ========== Section Title ==========
 @Composable
-private fun PlayerProfileCard(
-    profile: com.example.data.UserProfile,
+fun SectionTitle(title: String) {
+    Text(
+        text = title,
+        color = TextGray,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 2.sp,
+        modifier = Modifier.padding(vertical = 4.dp)
+    )
+}
+
+// ========== Profile Header ==========
+@Composable
+fun ProfileHeaderSection(
+    userProfile: com.example.data.UserProfile?,
     rankTier: String,
     xpProgress: Float,
     onEditNameClick: () -> Unit
 ) {
-    GlassmorphicCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        borderColor = Color(0x2200FFCC),
-        backgroundColor = Color(0x120F172A),
-        glowColor = Color(0xFF00FFCC)
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "LEVEL ${profile.level}",
-                    color = Color(0xFF00FFCC),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .clickable { onEditNameClick() }
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = profile.username,
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Username",
-                        tint = Color(0xFF00FFCC).copy(alpha = 0.7f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                LinearProgressIndicator(
-                    progress = { xpProgress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = Color(0xFF00FFCC),
-                    trackColor = Color(0xFF1E293B)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${profile.xp} / ${profile.level * 1000} XP",
-                    color = Color.Gray,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
+            // Avatar
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(CircleShape)
+                    .background(Primary.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    tint = Primary,
+                    modifier = Modifier.size(36.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Rank
-            RankBadge(rankTier = rankTier, rankScore = profile.rankedScore)
-        }
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = userProfile?.username ?: "Player",
+                        color = TextWhite,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onEditNameClick, modifier = Modifier.size(24.dp)) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit",
+                            tint = TextGray,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
 
-        Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-        // Stats row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            InfoStatItem("TOP LENGTH", profile.highestScore.toString(), Icons.Default.TrendingUp)
-            InfoStatItem("MATCHES", profile.matchesPlayed.toString(), Icons.Default.SportsEsports)
-            InfoStatItem("CLAN", profile.clanName ?: "NONE", Icons.Default.Group)
+                Text(
+                    text = "Level ${userProfile?.level ?: 1} · $rankTier",
+                    color = TextGray,
+                    fontSize = 14.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LinearProgressIndicator(
+                    progress = { xpProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = Primary,
+                    trackColor = Color.White.copy(alpha = 0.1f)
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "${userProfile?.xp ?: 0} / ${(userProfile?.level ?: 1) * 1000} XP",
+                    color = TextLight,
+                    fontSize = 12.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Coins
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Default.MonetizationOn,
+                    contentDescription = "Coins",
+                    tint = Color(0xFFFFD700),
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = "${userProfile?.coins ?: 0}",
+                    color = TextWhite,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("coins", color = TextGray, fontSize = 12.sp)
+            }
         }
     }
 }
 
+// ========== Game Mode Row ==========
 @Composable
-private fun RankBadge(rankTier: String, rankScore: Int) {
-    val rankColor = getRankColor(rankTier)
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(rankColor.copy(alpha = 0.15f))
-                .border(2.dp, rankColor, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = getRankIcon(rankTier),
-                contentDescription = rankTier,
-                tint = rankColor,
-                modifier = Modifier.size(30.dp)
+fun GameModeRow(
+    selectedMode: String,
+    onModeSelected: (String) -> Unit
+) {
+    val modes = listOf(
+        "Casual" to "Quick Match",
+        "Ranked" to "Competitive",
+        "Battle Royale" to "Last Snake Standing",
+        "Private Room" to "Friends Only"
+    )
+
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp)
+    ) {
+        items(modes) { (mode, desc) ->
+            val isSelected = selectedMode == mode
+            ModeCard(
+                mode = mode,
+                description = desc,
+                isSelected = isSelected,
+                onClick = { onModeSelected(mode) },
+                modifier = Modifier.width(140.dp)
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = rankTier.uppercase(Locale.getDefault()),
-            color = Color.White,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "$rankScore PTS",
-            color = Color.LightGray,
-            fontSize = 10.sp
-        )
-    }
-}
-
-// ========== Navigation Links ==========
-@Composable
-private fun NavigationLinks(
-    onNavigateToShop: () -> Unit,
-    onNavigateToClans: () -> Unit,
-    onNavigateToLeaderboard: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        NavLinkItem(
-            icon = Icons.Default.Palette,
-            label = "SHOP",
-            iconColor = Color(0xFF9933FF),
-            onClick = onNavigateToShop
-        )
-        NavLinkItem(
-            icon = Icons.Default.Group,
-            label = "CLANS",
-            iconColor = Color(0xFF00FFCC),
-            onClick = onNavigateToClans
-        )
-        NavLinkItem(
-            icon = Icons.Default.Leaderboard,
-            label = "RECORDS",
-            iconColor = Color(0xFFFF9900),
-            onClick = onNavigateToLeaderboard
-        )
     }
 }
 
 @Composable
-private fun RowScope.NavLinkItem( // 🌟 Changed here to RowScope.NavLinkItem
-    icon: ImageVector,
-    label: String,
-    iconColor: Color,
-    onClick: () -> Unit
+fun ModeCard(
+    mode: String,
+    description: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = Modifier
-            .weight(1f)   // ✅ Now compiling perfectly!
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0x0CFFFFFF))
-            .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(12.dp),
-        contentAlignment = Alignment.Center
+    Card(
+        modifier = modifier
+            .height(100.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Primary.copy(alpha = 0.2f) else Surface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) Primary else Color.Transparent
+        )
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(icon, contentDescription = label, tint = iconColor, modifier = Modifier.size(20.dp))
-            Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        }
-    }
-}
-
-// ========== Lobby Tabs ==========
-@Composable
-private fun LobbyTabs(
-    activeTab: String,
-    onTabSelected: (String) -> Unit
-) {
-    val tabs = listOf("PLAY GRID" to "LOBBY", "MISSIONS & BATTLE PASS" to "MISSIONS")
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF0C0E17), RoundedCornerShape(12.dp))
-            .border(BorderStroke(1.dp, Color(0x1F22D3EE)), RoundedCornerShape(12.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        tabs.forEach { (label, key) ->
-            val isSelected = activeTab == key
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isSelected) Color(0x1A00FFCC) else Color.Transparent)
-                    .clickable { onTabSelected(key) }
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (key == "LOBBY") Icons.Default.SportsEsports else Icons.Default.WorkspacePremium,
-                        contentDescription = label,
-                        tint = if (isSelected) Color(0xFF00FFCC) else Color.Gray,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = label,
-                        color = if (isSelected) Color.White else Color.Gray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ========== Tactical Class Selector ==========
-@Composable
-private fun TacticalClassSelector(
-    selectedClass: String,
-    onClassSelected: (String) -> Unit
-) {
-    Text(
-        text = "SELECT TACTICAL CLASS",
-        color = Color.White.copy(alpha = 0.6f),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 2.sp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 6.dp)
-    )
-
-    val classTypes = listOf("SHIELD", "FREEZE_PULSE", "EMP_BLAST", "SPEED_BURST", "GHOST_PHASE")
-    val classLabels = listOf("AEGIS SHIELD", "SUB-ZERO BLAST", "DISRUPTOR EMP", "DRIVE BURST", "QUANTUM GHOST")
-    val classDesc = listOf("Generates 3s shield", "Slowing freeze pulse", "Stalls boost; converts food", "Aggressive speed boost", "Phase through of body segment")
-    val classIcons = listOf(Icons.Default.Shield, Icons.Default.AcUnit, Icons.Default.FlashOn, Icons.Default.Bolt, Icons.Default.Widgets)
-    val classColors = listOf(Color(0xFF00E5FF), Color(0xFF80D8FF), Color(0xFFFFEE55), Color(0xFFFF5722), Color(0xFFB0BEC5))
-
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-    ) {
-        classTypes.forEachIndexed { idx, type ->
-            val isSelected = selectedClass == type
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (isSelected) classColors[idx].copy(alpha = 0.08f) else Color(0x08FFFFFF))
-                    .border(
-                        1.dp,
-                        if (isSelected) classColors[idx] else Color(0x1AFFFFFF),
-                        RoundedCornerShape(12.dp)
-                    )
-                    .clickable { onClassSelected(type) }
-                    .padding(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(classColors[idx].copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = classIcons[idx],
-                            contentDescription = type,
-                            tint = classColors[idx],
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = classLabels[idx],
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = classDesc[idx],
-                            color = Color.Gray,
-                            fontSize = 9.sp,
-                            lineHeight = 12.sp
-                        )
-                    }
-
-                    if (isSelected) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(classColors[idx].copy(alpha = 0.2f))
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                "DEPLOY",
-                                color = classColors[idx],
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ========== Arena Theme Selector ==========
-@Composable
-private fun ArenaThemeSelector(
-    selectedTheme: ArenaTheme,
-    onThemeSelected: (ArenaTheme) -> Unit
-) {
-    Text(
-        text = "SELECT ARENA PARAMETERS",
-        color = Color.White.copy(alpha = 0.6f),
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 2.sp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 6.dp)
-    )
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        ArenaTheme.values().forEach { theme ->
-            val isSelected = selectedTheme == theme
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isSelected) Color(0x1A00FFCC) else Color(0x08FFFFFF))
-                    .border(
-                        1.dp,
-                        if (isSelected) Color(0xFF00FFCC) else Color(0x1AFFFFFF),
-                        RoundedCornerShape(10.dp)
-                    )
-                    .clickable { onThemeSelected(theme) }
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            Icon(
+                imageVector = when (mode) {
+                    "Casual" -> Icons.Default.SportsEsports
+                    "Ranked" -> Icons.Default.MilitaryTech
+                    "Battle Royale" -> Icons.Default.EmojiEvents
+                    else -> Icons.Default.Lock
+                },
+                contentDescription = null,
+                tint = if (isSelected) Primary else TextGray,
+                modifier = Modifier.size(28.dp)
+            )
+            Column {
                 Text(
-                    text = theme.displayName.uppercase(Locale.getDefault()).replace(" ", "\n"),
-                    color = if (isSelected) Color(0xFF00FFCC) else Color.Gray,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 13.sp
+                    text = mode,
+                    color = if (isSelected) Primary else TextWhite,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = description,
+                    color = TextLight,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
     }
 }
 
-// ========== Multiplayer Settings ==========
+// ========== Arena Theme Row ==========
 @Composable
-private fun MultiplayerSettingsCard(viewModel: GameViewModel) {
-    Text(
-        text = "MULTIPLAYER NETWORK TUNING",
-        color = Color.White.copy(alpha = 0.6f),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 2.sp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 6.dp)
+fun ArenaThemeRow(
+    selectedTheme: ArenaTheme,
+    onThemeSelected: (ArenaTheme) -> Unit
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp)
+    ) {
+        items(ArenaTheme.values()) { theme ->
+            val isSelected = selectedTheme == theme
+            ThemeCard(
+                theme = theme,
+                isSelected = isSelected,
+                onClick = { onThemeSelected(theme) },
+                modifier = Modifier.width(120.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun ThemeCard(
+    theme: ArenaTheme,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .height(90.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Secondary.copy(alpha = 0.2f) else Surface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) Secondary else Color.Transparent
+        )
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Landscape,
+                    contentDescription = null,
+                    tint = if (isSelected) Secondary else TextGray,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = theme.displayName,
+                    color = if (isSelected) Secondary else TextWhite,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2
+                )
+            }
+        }
+    }
+}
+
+// ========== Tactical Class Row ==========
+@Composable
+fun TacticalClassRow(
+    selectedClass: String,
+    onClassSelected: (String) -> Unit
+) {
+    val classData = listOf(
+        ClassInfo("SHIELD", "Aegis Shield", "Temporary invulnerability", Icons.Default.Shield, Color(0xFF00E5FF)),
+        ClassInfo("FREEZE_PULSE", "Sub-Zero Blast", "Slowing freeze pulse", Icons.Default.AcUnit, Color(0xFF80D8FF)),
+        ClassInfo("EMP_BLAST", "Disruptor EMP", "Stalls enemy boost", Icons.Default.FlashOn, Color(0xFFFFEE55)),
+        ClassInfo("SPEED_BURST", "Drive Burst", "Speed boost", Icons.Default.Bolt, Color(0xFFFF5722)),
+        ClassInfo("GHOST_PHASE", "Quantum Ghost", "Phase through body", Icons.Default.Widgets, Color(0xFFB0BEC5))
     )
 
-    val mpManager = viewModel.multiplayerManager
-
-    GlassmorphicCard(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        borderColor = Color(0x19FFFFFF),
-        backgroundColor = Color(0x0CFFFFFF),
-        glowColor = Color(0x1100FFCC)
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Region Selector
+        items(classData) { classInfo ->
+            val isSelected = selectedClass == classInfo.id
+            ClassCard(
+                classInfo = classInfo,
+                isSelected = isSelected,
+                onClick = { onClassSelected(classInfo.id) },
+                modifier = Modifier.width(150.dp)
+            )
+        }
+    }
+}
+
+data class ClassInfo(
+    val id: String,
+    val name: String,
+    val description: String,
+    val icon: ImageVector,
+    val color: Color
+)
+
+@Composable
+fun ClassCard(
+    classInfo: ClassInfo,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .height(110.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) classInfo.color.copy(alpha = 0.15f) else Surface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) classInfo.color else Color.Transparent
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Icon(
+                classInfo.icon,
+                contentDescription = null,
+                tint = classInfo.color,
+                modifier = Modifier.size(32.dp)
+            )
+            Column {
+                Text(
+                    text = classInfo.name,
+                    color = TextWhite,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = classInfo.description,
+                    color = TextGray,
+                    fontSize = 12.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+// ========== Private Room Quick Card ==========
+@Composable
+fun PrivateRoomQuickCard(
+    privateRoomCode: String,
+    mpStatus: ConnectionStatus,
+    onOpenRoom: () -> Unit,
+    onGenerateCode: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text("Private Room", color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (privateRoomCode.isNotBlank()) "Code: $privateRoomCode" else "No code generated",
+                    color = TextGray,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "Status: ${mpStatus.name}",
+                    color = if (mpStatus == ConnectionStatus.CONNECTED) Success else TextLight,
+                    fontSize = 12.sp
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Button(onClick = onOpenRoom, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
+                    Text("Lobby", color = Color.White)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onGenerateCode,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Secondary),
+                    border = BorderStroke(1.dp, Secondary)
+                ) {
+                    Text("Generate Code")
+                }
+            }
+        }
+    }
+}
+
+// ========== Private Room Dialog ==========
+@Composable
+fun PrivateRoomDialog(
+    initialCode: String,
+    mpManager: MultiplayerManager,
+    mpStatus: ConnectionStatus,
+    userProfile: com.example.data.UserProfile?,
+    onCodeChange: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var roomCode by remember { mutableStateOf(initialCode) }
+    var chatText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Surface,
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Text("Private Room Lobby", color = TextWhite, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = roomCode,
+                    onValueChange = {
+                        roomCode = it.take(10).uppercase()
+                        onCodeChange(roomCode)
+                    },
+                    label = { Text("Room Code") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = Primary,
+                        focusedLabelColor = Primary
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                MultiplayerLobbyCard(
+                    mpStatus = mpStatus,
+                    mpManager = mpManager,
+                    userProfile = userProfile,
+                    privateRoomCode = roomCode,
+                    chatTextInput = chatText,
+                    onChatTextChange = { chatText = it },
+                    onSendMessage = {
+                        if (chatText.isNotBlank()) {
+                            mpManager.broadcastChatMessage(chatText)
+                            chatText = ""
+                        }
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onDismiss) {
+                    Text("Close", color = TextGray)
+                }
+            }
+        }
+    )
+}
+
+// ========== Multiplayer Lobby Card ==========
+@Composable
+fun MultiplayerLobbyCard(
+    mpStatus: ConnectionStatus,
+    mpManager: MultiplayerManager,
+    userProfile: com.example.data.UserProfile?,
+    privateRoomCode: String,
+    chatTextInput: String,
+    onChatTextChange: (String) -> Unit,
+    onSendMessage: () -> Unit
+) {
+    // ✅ FIXED: collect participants and messages as state to react to changes
+    val participants by mpManager.activeParticipants.collectAsStateWithLifecycle()
+    val chatMessages by mpManager.chatMessages.collectAsStateWithLifecycle()
+    val pingMs by mpManager.pingMs.collectAsStateWithLifecycle()
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Status indicator
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when (mpStatus) {
+                            ConnectionStatus.CONNECTED -> Success
+                            ConnectionStatus.CONNECTING, ConnectionStatus.HANDSHARING -> Color(0xFFFFCC00)
+                            else -> Color.Gray
+                        }
+                    )
+            )
+            Text("Status: ${mpStatus.name}", color = TextWhite, fontSize = 14.sp)
+            if (mpStatus == ConnectionStatus.CONNECTED) {
+                Text("Ping: ${pingMs}ms", color = Primary, fontSize = 12.sp)
+            }
+        }
+
+        when (mpStatus) {
+            ConnectionStatus.OFFLINE, ConnectionStatus.DISCONNECTED -> {
+                Button(
+                    onClick = {
+                        val finalCode = privateRoomCode.ifBlank { "LOBBY-VIPER" }
+                        mpManager.connectToRoomWebSocket(finalCode, userProfile?.username ?: "Player")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                ) {
+                    Text("Connect to Room", color = Color.White)
+                }
+            }
+            ConnectionStatus.CONNECTING, ConnectionStatus.HANDSHARING -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Connecting...", color = TextGray)
+                }
+            }
+            ConnectionStatus.CONNECTED -> {
+                // Participants (now reactive)
+                Text("Participants (${participants.size})", color = TextGray, fontSize = 12.sp)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(participants) { user ->
+                        val isSelf = user == (userProfile?.username ?: "Player")
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelf) Primary.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f))
+                                .border(1.dp, if (isSelf) Primary else Color.Transparent, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(user, color = TextWhite, fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                // Chat (now reactive)
+                Column {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.2f))
+                            .padding(8.dp)
+                    ) {
+                        LazyColumn {
+                            items(chatMessages.reversed()) { msg ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        "[${msg.sender}]:",
+                                        color = if (msg.sender == userProfile?.username) Primary else Danger,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(msg.text, color = TextWhite, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = chatTextInput,
+                            onValueChange = onChatTextChange,
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("Type message...", fontSize = 12.sp) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite,
+                                focusedBorderColor = Primary
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        Button(onClick = onSendMessage, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
+                            Text("Send")
+                        }
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = { mpManager.disconnect() },
+                    modifier = Modifier.fillMaxWidth(),
+                    border = BorderStroke(1.dp, Danger),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)
+                ) {
+                    Text("Disconnect")
+                }
+            }
+        }
+    }
+}
+
+// ========== Multiplayer Settings Sheet ==========
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MultiplayerSettingsSheet(
+    mpManager: MultiplayerManager,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text("Network Settings", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "SERVER GEOLOCATION",
-                    color = Color.LightGray,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier
-                        .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                        .clickable {
-                            val regions = ServerRegion.values()
-                            val nextIndex = (mpManager.selectedRegion.ordinal + 1) % regions.size
-                            mpManager.selectedRegion = regions[nextIndex]
-                        }
+                Text("Server Region", color = TextGray, fontSize = 16.sp)
+                Button(
+                    onClick = {
+                        val regions = ServerRegion.values()
+                        val next = (mpManager.selectedRegion.ordinal + 1) % regions.size
+                        mpManager.selectedRegion = regions[next]
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Surface, contentColor = Primary),
+                    border = BorderStroke(1.dp, Primary)
                 ) {
-                    Text(
-                        text = mpManager.selectedRegion.regionName.uppercase(),
-                        color = Color(0xFF00FFCC),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = "Region",
-                        tint = Color(0xFF00FFCC),
-                        modifier = Modifier.size(14.dp)
-                    )
+                    Text(mpManager.selectedRegion.regionName)
                 }
             }
 
-            // Lag Compensation
-            SettingsSwitchRow(
-                title = "LAG COMPENSATION (LERP)",
-                subtitle = "Interpolates position packets at 20Hz",
-                checked = mpManager.isLagCompensationEnabled,
-                onCheckedChange = { mpManager.isLagCompensationEnabled = it }
-            )
-
-            // Tick Rate
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(
-                        text = "PACKET DATA RATE",
-                        color = Color.LightGray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Simulated tick syncing frequency",
-                        color = Color.Gray,
-                        fontSize = 8.5.sp
-                    )
+                    Text("Lag Compensation", color = TextWhite, fontSize = 16.sp)
+                    Text("Interpolates packets", color = TextLight, fontSize = 12.sp)
                 }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    listOf(20, 30, 60).forEach { rate ->
-                        val active = mpManager.tickRateHz == rate
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (active) Color(0xFF00FFCC) else Color(0xFF1E293B))
-                                .clickable { mpManager.tickRateHz = rate }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "${rate}Hz",
-                                color = if (active) Color.Black else Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingsSwitchRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                text = title,
-                color = Color.LightGray,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = subtitle,
-                color = Color.Gray,
-                fontSize = 8.5.sp
-            )
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color(0xFF00FFCC),
-                checkedTrackColor = Color(0x4D00FFCC)
-            )
-        )
-    }
-}
-
-// ========== Game Mode Selector ==========
-@Composable
-private fun GameModeSelector(
-    selectedMode: String,
-    onModeSelected: (String) -> Unit
-) {
-    val modes = listOf("Casual", "Ranked", "Battle Royale", "Private Room")
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF0C0E17), RoundedCornerShape(12.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        modes.forEach { mode ->
-            val isSelected = selectedMode == mode
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isSelected) Color(0xFF1E293B) else Color.Transparent)
-                    .border(
-                        1.dp,
-                        if (isSelected) Color(0x33FFFFFF) else Color.Transparent,
-                        RoundedCornerShape(10.dp)
-                    )
-                    .clickable { onModeSelected(mode) }
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = mode.uppercase(Locale.getDefault()),
-                    color = if (isSelected) Color(0xFF00FFCC) else Color.LightGray,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    textAlign = TextAlign.Center
+                Switch(
+                    checked = mpManager.isLagCompensationEnabled,
+                    onCheckedChange = { mpManager.isLagCompensationEnabled = it },
+                    colors = SwitchDefaults.colors(checkedThumbColor = Primary)
                 )
             }
+
+            Text("Tick Rate", color = TextWhite, fontSize = 16.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                listOf(20, 30, 60).forEach { rate ->
+                    FilterChip(
+                        selected = mpManager.tickRateHz == rate,
+                        onClick = { mpManager.tickRateHz = rate },
+                        label = { Text("${rate}Hz") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Primary,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
         }
     }
 }
 
-// ========== Private Room Controls ==========
+// ========== Battle Pass Track ==========
 @Composable
-private fun PrivateRoomControls(
-    privateRoomCode: String,
-    onCodeChange: (String) -> Unit,
-    onGenerateCode: () -> Unit,
-    mpManager: MultiplayerManager,
-    mpStatus: ConnectionStatus,
-    userProfile: com.example.data.UserProfile?,
-    chatTextInput: String,
-    onChatTextChange: (String) -> Unit,
-    onSendMessage: () -> Unit
+fun BattlePassTrack(
+    bpLevel: Int,
+    onClaimReward: (Int, String) -> Unit
 ) {
-    AnimatedVisibility(
-        visible = true,
-        enter = fadeIn() + expandVertically(),
-        exit = fadeOut() + shrinkVertically()
+    val tiers = listOf(
+        "200 Coins" to 1,
+        "Glow Cyber" to 2,
+        "600 Coins" to 3,
+        "Space Wraith" to 4,
+        "Meteor Trail" to 5
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Battle Pass · Level $bpLevel",
+                color = TextWhite,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { (bpLevel.toFloat() / 5f).coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp)),
+                color = Secondary,
+                trackColor = Color.White.copy(alpha = 0.1f)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(tiers) { (reward, tierNum) ->
+                    val unlocked = bpLevel >= tierNum
+                    TierCard(
+                        reward = reward,
+                        unlocked = unlocked,
+                        onClick = { if (unlocked) onClaimReward(tierNum, reward) },
+                        modifier = Modifier.width(100.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TierCard(
+    reward: String,
+    unlocked: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .height(110.dp)
+            .clickable(enabled = unlocked, onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (unlocked) Secondary.copy(alpha = 0.2f) else Surface
+        ),
+        border = BorderStroke(1.dp, if (unlocked) Secondary else Color.Transparent)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .fillMaxSize()
+                .padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            // Room Code Input
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = privateRoomCode,
-                    onValueChange = { onCodeChange(it.take(10).uppercase()) },
-                    label = { Text("ROOM CODE") },
-                    placeholder = { Text("E.g. COBRA-919") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.LightGray,
-                        focusedBorderColor = Color(0xFF00FFCC),
-                        unfocusedBorderColor = Color(0x33FFFFFF),
-                        focusedLabelColor = Color(0xFF00FFCC)
-                    ),
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    singleLine = true
-                )
-
-                Button(
-                    onClick = onGenerateCode,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0x1F00FFCC),
-                        contentColor = Color(0xFF00FFCC)
-                    ),
-                    border = BorderStroke(1.dp, Color(0xFF00FFCC)),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.height(56.dp)
-                ) {
-                    Text(
-                        "GENERATE",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Multiplayer Lobby Card
-            MultiplayerLobbyCard(
-                mpStatus = mpStatus,
-                mpManager = mpManager,
-                userProfile = userProfile,
-                privateRoomCode = privateRoomCode,
-                chatTextInput = chatTextInput,
-                onChatTextChange = onChatTextChange,
-                onSendMessage = onSendMessage
+            Icon(
+                if (unlocked) Icons.Default.CardGiftcard else Icons.Default.Lock,
+                contentDescription = null,
+                tint = if (unlocked) Secondary else TextGray,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                reward,
+                color = if (unlocked) TextWhite else TextGray,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
         }
     }
 }
 
-// ========== Multiplayer Lobby Card ==========
+// ========== Mission List ==========
 @Composable
-private fun MultiplayerLobbyCard(
-    mpStatus: ConnectionStatus,
-    mpManager: MultiplayerManager,
-    userProfile: com.example.data.UserProfile?,
-    privateRoomCode: String,
-    chatTextInput: String,
-    onChatTextChange: (String) -> Unit,
-    onSendMessage: () -> Unit
-) {
-    val participants by mpManager.activeParticipants.collectAsStateWithLifecycle()
-    val chatMessages by mpManager.chatMessages.collectAsStateWithLifecycle()
-    val pingMs by mpManager.pingMs.collectAsStateWithLifecycle()
-
-    GlassmorphicCard(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        borderColor = when (mpStatus) {
-            ConnectionStatus.CONNECTED -> Color(0xFF00FFCC).copy(alpha = 0.5f)
-            ConnectionStatus.CONNECTING, ConnectionStatus.HANDSHARING -> Color(0xFFFFCC00).copy(alpha = 0.5f)
-            else -> Color(0x33FFFFFF)
-        },
-        backgroundColor = Color(0x1F0A0E1A)
+fun MissionList(title: String, missions: List<Pair<String, Boolean>>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(20.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Status Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            missions.forEach { (desc, done) ->
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(
-                                when (mpStatus) {
-                                    ConnectionStatus.CONNECTED -> Color(0xFF00FFCC)
-                                    ConnectionStatus.CONNECTING, ConnectionStatus.HANDSHARING -> Color(0xFFFFCC00)
-                                    else -> Color.DarkGray
-                                }
-                            )
-                    )
                     Text(
-                        text = "WS NETWORK LOBBY: ${mpStatus.name}",
-                        color = Color.White,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp
+                        desc,
+                        color = if (done) TextGray else TextWhite,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f)
                     )
-                }
-                if (mpStatus == ConnectionStatus.CONNECTED) {
-                    Text(
-                        text = "PING: ${pingMs}MS",
-                        color = Color(0xFF00FFCC),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                    Icon(
+                        if (done) Icons.Default.CheckCircle else Icons.Default.Circle,
+                        contentDescription = null,
+                        tint = if (done) Success else TextLight,
+                        modifier = Modifier.size(24.dp)
                     )
-                }
-            }
-
-            when (mpStatus) {
-                ConnectionStatus.OFFLINE, ConnectionStatus.DISCONNECTED -> {
-                    Text(
-                        text = "Ready to deploy real-time low-latency cross-device room sync? Hook up to our global Socket.IO lobby network to sync multiplayer game matches, room chats, list participants, and deploy instantly with other live players on the same Room Code.",
-                        color = Color.Gray,
-                        fontSize = 9.sp,
-                        lineHeight = 13.sp
-                    )
-                    Button(
-                        onClick = {
-                            val finalCode = privateRoomCode.ifBlank { "LOBBY-VIPER" }
-                            mpManager.connectToRoomWebSocket(finalCode, userProfile?.username ?: "Player")
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "SOCKET.IO MULTIPLAYER CONNECT",
-                            color = Color.Black,
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-
-                ConnectionStatus.CONNECTING, ConnectionStatus.HANDSHARING -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = Color(0xFF00FFCC),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "NEGOTIATING STUN HANDSHAKE RELAY...",
-                            color = Color(0xFFFFCC00),
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                ConnectionStatus.CONNECTED -> {
-                    // Participants
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "ACTIVE ROOM PARTICIPANTS (${participants.size}):",
-                            color = Color.Gray,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(
-                                items = participants,
-                                key = { it }
-                            ) { user ->
-                                val isSelf = user == (userProfile?.username ?: "Player")
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelf) Color(0x3300FFCC) else Color(0x11FFFFFF))
-                                        .border(1.dp, if (isSelf) Color(0x6600FFCC) else Color(0x1Fffffff), RoundedCornerShape(6.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Person,
-                                            contentDescription = null,
-                                            tint = if (isSelf) Color(0xFF00FFCC) else Color.LightGray,
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                        Text(
-                                            text = user.uppercase(),
-                                            color = Color.White,
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Divider(color = Color.White.copy(alpha = 0.08f))
-
-                    // Chat
-                    ChatBox(
-                        chatMessages = chatMessages,
-                        currentUsername = userProfile?.username ?: "Player",
-                        chatTextInput = chatTextInput,
-                        onChatTextChange = onChatTextChange,
-                        onSendMessage = onSendMessage
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Button(
-                        onClick = { mpManager.disconnect() },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x22FF3366)),
-                        border = BorderStroke(1.dp, Color(0xFFFF3366)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "DISCONNECT FROM LOBBY NETWORK",
-                            color = Color(0xFFFF3366),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
                 }
             }
         }
     }
 }
 
-// ========== Chat Box ==========
+// ========== Social Grid ==========
 @Composable
-private fun ChatBox(
-    chatMessages: List<com.example.game.LobbyChatMessage>,
-    currentUsername: String,
-    chatTextInput: String,
-    onChatTextChange: (String) -> Unit,
-    onSendMessage: () -> Unit
+fun SocialGrid(
+    onShop: () -> Unit,
+    onClan: () -> Unit,
+    onLeaderboard: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = "LOBBY SECURED CHAT TRANSMISSIONS:",
-            color = Color.Gray,
-            fontSize = 8.5.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(110.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.4f))
-                .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
-                .padding(6.dp)
-        ) {
-            if (chatMessages.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "NO INCOMING MESSAGES YET. START TYPING BELOW!",
-                        color = Color.DarkGray,
-                        fontSize = 8.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    reverseLayout = true
-                ) {
-                    items(
-                        items = chatMessages.reversed(),
-                        key = { it.id }
-                    ) { msg ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Text(
-                                text = "[${msg.sender.uppercase()}]:",
-                                color = if (msg.sender == currentUsername) Color(0xFF00FFCC) else Color(0xFFFF3366),
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            Text(
-                                text = msg.text,
-                                color = Color.LightGray,
-                                fontSize = 8.5.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        userScrollEnabled = false
+    ) {
+        item {
+            SocialGridCard(icon = Icons.Default.Palette, title = "Shop", onClick = onShop)
         }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = chatTextInput,
-                onValueChange = onChatTextChange,
-                placeholder = { Text("Signal text...", fontSize = 9.sp, color = Color.Gray) },
-                modifier = Modifier.weight(1f),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF00FFCC),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
-                ),
-                shape = RoundedCornerShape(6.dp),
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 10.sp)
-            )
-
-            Button(
-                onClick = onSendMessage,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0x3300FFCC)),
-                border = BorderStroke(1.dp, Color(0xFF00FFCC)),
-                shape = RoundedCornerShape(6.dp),
-                modifier = Modifier.height(38.dp)
-            ) {
-                Text(
-                    text = "SEND",
-                    color = Color(0xFF00FFCC),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
+        item {
+            SocialGridCard(icon = Icons.Default.Group, title = "Clan", onClick = onClan)
+        }
+        item {
+            SocialGridCard(icon = Icons.Default.Leaderboard, title = "Leaderboard", onClick = onLeaderboard)
+        }
+        item {
+            SocialGridCard(icon = Icons.Default.CardGiftcard, title = "Rewards", onClick = { /* future */ })
         }
     }
 }
 
-// ========== Match History ==========
 @Composable
-private fun MatchHistory(matchRecords: List<com.example.data.MatchRecord>) {
-    Text(
-        text = "RECENT MATCH HISTORY",
-        color = Color.White.copy(alpha = 0.6f),
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 2.sp,
+fun SocialGridCard(icon: ImageVector, title: String, onClick: () -> Unit) {
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp)
-    )
+            .height(100.dp)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, contentDescription = null, tint = Primary, modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(title, color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
 
+// ========== Match History Section ==========
+@Composable
+fun MatchHistorySection(matchRecords: List<com.example.data.MatchRecord>) {
     if (matchRecords.isEmpty()) {
-        GlassmorphicCard(
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            borderColor = Color(0x11FFFFFF)
+            colors = CardDefaults.cardColors(containerColor = Surface),
+            shape = RoundedCornerShape(20.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp),
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    imageVector = Icons.Default.SportsEsports,
-                    contentDescription = "Empty Matches",
-                    tint = Color.DarkGray,
-                    modifier = Modifier.size(40.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "No games recorded yet!\nChoose a mode above and jump into the grid.",
-                    color = Color.Gray,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center
-                )
+                Icon(Icons.Default.SportsEsports, null, tint = TextLight, modifier = Modifier.size(40.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("No matches yet", color = TextGray, fontSize = 16.sp)
             }
         }
     } else {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            userScrollEnabled = false
         ) {
-            matchRecords.take(5).forEach { record ->
-                HistoricalRecordRow(record)
+            items(matchRecords.take(5)) { record ->
+                MatchCard(record)
             }
         }
     }
 }
 
-// ========== Missions & Battle Pass ==========
 @Composable
-private fun MissionsAndBattlePass(
-    userProfile: com.example.data.UserProfile?,
-    viewModel: GameViewModel
-) {
-    Text(
-        text = "NEON BATTLE PASS - SEASON 1",
-        color = Color.White,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Bold,
-        fontFamily = FontFamily.Monospace,
-        letterSpacing = 1.sp,
-        modifier = Modifier.fillMaxWidth()
-    )
-    Text(
-        text = "Advance your slithering achievements to unlock elite tier reward cells",
-        color = Color.Gray,
-        fontSize = 10.sp,
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-    )
-
-    val bpLevel = ((userProfile?.level ?: 1) - 1).coerceAtLeast(1)
-    val totalTiers = 5
-
-    GlassmorphicCard(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        borderColor = Color(0x33FFFF00),
-        backgroundColor = Color(0x1F110B29),
-        glowColor = Color(0x22FFFF00)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("BATTLE PASS LEVEL $bpLevel", color = Color(0xFFFFFF33), fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                Text("TIERS: $bpLevel / $totalTiers", color = Color.Gray, fontSize = 9.sp)
-            }
-
-            val progressFraction = (bpLevel.toFloat() / totalTiers.toFloat()).coerceIn(0f, 1f)
-            LinearProgressIndicator(
-                progress = { progressFraction },
-                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                color = Color(0xFFFFFF33),
-                trackColor = Color(0x33FFFFFF)
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Battle Pass Tiers
-            BattlePassTiers(
-                bpLevel = bpLevel,
-                onClaimReward = { tierNum, rewardDesc ->
-                    when (tierNum) {
-                        1 -> viewModel.earnFreeCoins(200)
-                        2 -> viewModel.buyCosmetic("Glow Cyber", "Skin", 0, {}, {}) // In real app, handle properly
-                        3 -> viewModel.earnFreeCoins(600)
-                        4 -> viewModel.buyCosmetic("Space Wraith", "Skin", 0, {}, {})
-                        5 -> viewModel.buyCosmetic("Meteor Trail", "Trail", 0, {}, {})
-                    }
-                }
-            )
-        }
+fun MatchCard(record: com.example.data.MatchRecord) {
+    val dateStr = remember {
+        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(record.timestamp))
     }
-
-    // Daily & Weekly Missions
-    Text(
-        text = "DAILY & WEEKLY MISSIONS",
-        color = Color.White,
-        fontSize = 15.sp,
-        fontWeight = FontWeight.Bold,
-        fontFamily = FontFamily.Monospace,
-        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
-    )
-    Text(
-        text = "Execute target assignments in active grids to harvest progression multipliers",
-        color = Color.Gray,
-        fontSize = 10.sp,
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-    )
-
-    val dailyMissions = listOf(
-        "Inhale 12 Super Orbs in any arena theme" to true,
-        "Activate Tactical Ability 5 times" to false,
-        "Engage in 1 Ranked multiplayer slither match" to true
-    )
-    val weeklyMissions = listOf(
-        "Accumulate 1500 XP in player progression levels" to false,
-        "Defeat 5 opponent snakes in the Battle Royale grid" to true,
-        "Reach Silver ranked multiplayer score threshold" to false
-    )
-
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
-    ) {
-        Text("DAILY TARGETS", color = Color(0xFF00FFCC), fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-        dailyMissions.forEach { (desc, done) ->
-            MissionItemRow(desc, done)
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text("WEEKLY DIRECTIVES", color = Color(0xFF9933FF), fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-        weeklyMissions.forEach { (desc, done) ->
-            MissionItemRow(desc, done)
-        }
-    }
-}
-
-// ========== Battle Pass Tiers ==========
-@Composable
-private fun BattlePassTiers(
-    bpLevel: Int,
-    onClaimReward: (Int, String) -> Unit
-) {
-    val rewards = listOf(
-        Triple("T1: 200 COINS", "Free", 1),
-        Triple("T2: GLOW CYBER", "Free", 2),
-        Triple("T3: 600 COINS", "Premium", 3),
-        Triple("T4: SPACE WRAITH", "Premium", 4),
-        Triple("T5: METEOR TRAIL", "Premium", 5)
-    )
-
-    Row(
+    val won = record.score > 0 // Replace with actual win condition if available
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(16.dp)
     ) {
-        rewards.forEach { (label, tierType, tierNum) ->
-            val unlocked = bpLevel >= tierNum
-            val borderCol = if (unlocked) Color(0xFFFFFF33) else Color(0x11FFFFFF)
-            val bgCol = if (unlocked) Color(0x1F22C55E) else Color(0x0AFFFFFF)
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(bgCol)
-                    .border(1.dp, borderCol, RoundedCornerShape(8.dp))
-                    .clickable(enabled = unlocked) {
-                        if (unlocked) onClaimReward(tierNum, label)
-                    }
-                    .padding(6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = if (unlocked) Icons.Default.CheckCircle else Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = if (unlocked) Color(0xFF22C55E) else Color.Gray,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(label, color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    Text(tierType.uppercase(), color = if (tierType == "Free") Color(0xFF00FFCC) else Color(0xFFFF3366), fontSize = 6.sp, fontWeight = FontWeight.Medium)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                if (won) Icons.Default.EmojiEvents else Icons.Default.Cancel,
+                contentDescription = null,
+                tint = if (won) Success else Danger,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    record.mode,
+                    color = TextWhite,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    dateStr,
+                    color = TextGray,
+                    fontSize = 12.sp
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "Score: ${record.score}",
+                    color = TextWhite,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("+${record.xpEarned} XP", color = Primary, fontSize = 12.sp)
+                    Text("+${record.coinsEarned} coins", color = Color(0xFFFFD700), fontSize = 12.sp)
                 }
             }
         }
@@ -1488,7 +1290,7 @@ private fun BattlePassTiers(
 
 // ========== Edit Name Dialog ==========
 @Composable
-private fun EditNameDialog(
+fun EditNameDialog(
     currentName: String,
     onNameChange: (String) -> Unit,
     onConfirm: () -> Unit,
@@ -1496,198 +1298,44 @@ private fun EditNameDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
-        title = {
-            Text(
-                text = "EDIT PROFILE ENTRY CODE",
-                color = Color(0xFF00FFCC),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Black,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 2.sp
-            )
-        },
+        containerColor = Surface,
+        shape = RoundedCornerShape(24.dp),
+        title = { Text("Change Username", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column {
                 Text(
-                    text = "Set your visual identity within the game arena. You can enter any combination of alpha, numeric, or underscore characters (e.g., 1_ffg). Max 15 chars.",
-                    color = Color.LightGray,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp
+                    "Enter a new display name (max 15 characters)",
+                    color = TextGray,
+                    fontSize = 14.sp
                 )
+                Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = currentName,
                     onValueChange = { onNameChange(it.take(15)) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.LightGray,
-                        focusedBorderColor = Color(0xFF00FFCC),
-                        unfocusedBorderColor = Color(0x33FFFFFF),
-                        focusedLabelColor = Color(0xFF00FFCC)
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = Primary
                     ),
-                    placeholder = { Text("E.g. 1_ffg", color = Color.Gray) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("edit_username_input"),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(12.dp),
                     singleLine = true
                 )
             }
         },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF00FFCC),
-                    contentColor = Color.Black
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    "APPLY IDENTIFIER",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
-                )
+            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
+                Text("Save", color = Color.White)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(
-                    "ABORT RESET",
-                    color = Color.LightGray.copy(alpha = 0.6f),
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
-                )
+                Text("Cancel", color = TextGray)
             }
-        },
-        modifier = Modifier
-            .border(2.dp, Color(0xFF00FFCC).copy(alpha = 0.5f), RoundedCornerShape(28.dp))
-            .padding(2.dp)
+        }
     )
-}
-
-// ========== Info Stat Item ==========
-@Composable
-fun InfoStatItem(label: String, value: String, icon: ImageVector) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color(0x06FFFFFF))
-            .padding(10.dp)
-    ) {
-        Column(horizontalAlignment = Alignment.Start) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(icon, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(12.dp))
-                Text(label, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(value, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black)
-        }
-    }
-}
-
-// ========== Historical Record Row ==========
-@Composable
-fun HistoricalRecordRow(record: com.example.data.MatchRecord) {
-    val dateStr = remember(record.timestamp) {
-        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(record.timestamp))
-    }
-
-    val modeColor = when (record.mode) {
-        "Ranked" -> Color(0xFFFF9900)
-        "Battle Royale" -> Color(0xFFFF3366)
-        else -> Color(0xFF00FFCC)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0x09FFFFFF))
-            .border(1.dp, Color(0x0AFFFFFF), RoundedCornerShape(12.dp))
-            .padding(14.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = record.mode.uppercase(Locale.getDefault()),
-                    color = modeColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = dateStr,
-                    color = Color.Gray,
-                    fontSize = 10.sp
-                )
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "SCORE: ${record.score}",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "+${record.xpEarned} XP",
-                        color = Color(0xFF00FFCC),
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = "+${record.coinsEarned} C",
-                        color = Color(0xFFFFFF33),
-                        fontSize = 10.sp
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ========== Mission Item Row ==========
-@Composable
-fun MissionItemRow(desc: String, done: Boolean) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color(0x0CFFFFFF))
-            .border(1.dp, if (done) Color(0x3322C55E) else Color(0x0AFFFFFF), RoundedCornerShape(10.dp))
-            .padding(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = desc,
-                color = if (done) Color.Gray else Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                contentDescription = null,
-                tint = if (done) Color(0xFF22C55E) else Color.DarkGray,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
 }
 
 // ========== Rank Helpers ==========
@@ -1709,7 +1357,7 @@ fun getRankColor(tier: String): Color {
         "Gold" -> Color(0xFFFFD700)
         "Platinum" -> Color(0xFFE5E4E2)
         "Diamond" -> Color(0xFF33CCFF)
-        else -> Color(0xFF00FFCC) // Legend teal glow
+        else -> Primary
     }
 }
 
