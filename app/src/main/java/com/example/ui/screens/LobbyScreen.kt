@@ -1791,7 +1791,7 @@ fun MultiplayerLobbyCard(
     onSendMessage: () -> Unit
 ) {
     val participants = mpManager.activeParticipants
-    val chatMessages by lobbyViewModel.chatMessages.collectAsStateWithLifecycle()
+    val chatMessages by viewModel.chatMessages.collectAsStateWithLifecycle()
     val pingMs by mpManager.pingMs.collectAsStateWithLifecycle()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
