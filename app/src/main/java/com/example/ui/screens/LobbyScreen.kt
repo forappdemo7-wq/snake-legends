@@ -1566,6 +1566,7 @@ fun PrivateRoomDialog(
     mpManager: MultiplayerManager,
     mpStatus: ConnectionStatus,
     userProfile: UserProfile?,
+    chatMessages: List<ChatMessage>, // 1. Added this parameter to accept the message list
     onCodeChange: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1604,6 +1605,7 @@ fun PrivateRoomDialog(
                     userProfile = userProfile,
                     privateRoomCode = roomCode,
                     chatTextInput = chatText,
+                    chatMessages = chatMessages, // 2. Passed the list into the card here
                     onChatTextChange = { chatText = it },
                     onSendMessage = {
                         if (chatText.isNotBlank()) {
