@@ -1566,7 +1566,6 @@ fun PrivateRoomDialog(
     mpManager: MultiplayerManager,
     mpStatus: ConnectionStatus,
     userProfile: UserProfile?,
-    chatMessages: List<ChatMessage>, // 1. Added this parameter to accept the message list
     onCodeChange: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1605,7 +1604,6 @@ fun PrivateRoomDialog(
                     userProfile = userProfile,
                     privateRoomCode = roomCode,
                     chatTextInput = chatText,
-                    chatMessages = chatMessages, // 2. Passed the list into the card here
                     onChatTextChange = { chatText = it },
                     onSendMessage = {
                         if (chatText.isNotBlank()) {
@@ -1789,12 +1787,11 @@ fun MultiplayerLobbyCard(
     userProfile: UserProfile?,
     privateRoomCode: String,
     chatTextInput: String,
-    chatMessages: List<ChatMessage>, // 1. Hoist the chat messages list here
     onChatTextChange: (String) -> Unit,
     onSendMessage: () -> Unit
 ) {
-    // 2. FIX: Added 'by' and 'collectAsStateWithLifecycle()' so it evaluates to a List<String>
-    val participants by mpManager.activeParticipants.collectAsStateWithLifecycle()
+    val participants = mpManager.activeParticipants
+    val chatMessages = mpManager.chatMessages
     val pingMs by mpManager.pingMs.collectAsStateWithLifecycle()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
