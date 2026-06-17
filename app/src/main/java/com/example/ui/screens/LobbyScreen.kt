@@ -34,7 +34,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.MatchRecord
 import com.example.data.UserProfile
 import com.example.game.*
-import com.example.game.ChatMessage
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
@@ -1695,8 +1694,8 @@ fun MultiplayerLobbyCard(
     onChatTextChange: (String) -> Unit,
     onSendMessage: () -> Unit
 ) {
-    val participants = mpManager.activeParticipants
-    val chatMessages = mpManager.chatMessages
+    val participants by mpManager.activeParticipants.collectAsStateWithLifecycle()
+    val chatMessages by mpManager.chatMessages.collectAsStateWithLifecycle()
     val pingMs by mpManager.pingMs.collectAsStateWithLifecycle()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
