@@ -85,7 +85,7 @@ class MultiplayerManager {
     val activeParticipants: StateFlow<List<String>> = _activeParticipants.asStateFlow()
 
     // Peer snake data (synchronized map)
-    private val peerSnakes = mutableMapOf<String, PeerSnakeData>()
+    val peerSnakes: MutableMap<String, PeerSnakeData> = mutableMapOf()
 
     // Internal state
     private var socket: Socket? = null
