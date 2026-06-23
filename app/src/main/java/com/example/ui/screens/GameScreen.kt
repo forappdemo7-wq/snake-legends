@@ -55,7 +55,13 @@ fun GameScreen(
     val textMeasurer = rememberTextMeasurer()
 
     var tickState by remember { mutableStateOf(0) }
-    var scaleFactor by remember { mutableStateOf(1.0f) }
+    var isWideViewportMode by remember { mutableStateOf(false) }
+    val targetScale = if (isWideViewportMode) 0.58f else 1.0f
+    val scaleFactor by animateFloatAsState(
+        targetValue = targetScale,
+        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
+        label = "viewportScaleAnim"
+    )
     var isPaused by remember { mutableStateOf(false) }
     var lowGraphicsMode by remember { mutableStateOf(false) }
     var joystickOnRightSide by remember { mutableStateOf(false) }
@@ -932,17 +938,58 @@ fun GameScreen(
                 .padding(16.dp)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
         ) {
-            // PAUSE BUTTON
-            IconButton(
-                onClick = { isPaused = true },
+            // CONTROLLER & GENERAL ACTIONS BAR
+            Row(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .border(2.dp, Color(0xFF00FFCC).copy(alpha = 0.7f), CircleShape)
-                    .testTag("in_game_pause")
+                    .align(Alignment.TopStart),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Pause, contentDescription = "Pause Game", tint = Color(0xFF00FFCC))
+                // PAUSE BUTTON
+                IconButton(
+                    onClick = { isPaused = true },
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .border(2.dp, Color(0xFF00FFCC).copy(alpha = 0.7f), CircleShape)
+                        .testTag("in_game_pause")
+                ) {
+                    Icon(Icons.Default.Pause, contentDescription = "Pause Game", tint = Color(0xFF00FFCC))
+                }
+
+                // TABLET WIDE VIEW DYNAMIC SCALE HOT-TOGGLE
+                Button(
+                    onClick = { isWideViewportMode = !isWideViewportMode },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isWideViewportMode) Color(0xFF00FFCC) else Color.Black.copy(alpha = 0.5f),
+                        contentColor = if (isWideViewportMode) Color.Black else Color(0xFF00FFCC)
+                    ),
+                    border = BorderStroke(2.dp, Color(0xFF00FFCC).copy(alpha = 0.7f)),
+                    shape = RoundedCornerShape(18.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    modifier = Modifier
+                        .height(38.dp)
+                        .testTag("in_game_tablet_view_toggle")
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isWideViewportMode) Icons.Default.ZoomIn else Icons.Default.AspectRatio,
+                            contentDescription = "Tablet View Toggle",
+                            modifier = Modifier.size(16.dp),
+                            tint = if (isWideViewportMode) Color.Black else Color(0xFF00FFCC)
+                        )
+                        Text(
+                            text = if (isWideViewportMode) "TABLET VIEW" else "MOBILE VIEW",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
             }
 
             // DYNAMIC HIGH-VISIBILITY KILLFEED
@@ -1893,6 +1940,33 @@ fun GameScreen(
                                             uncheckedTrackColor = Color.Black
                                         ),
                                         modifier = Modifier.testTag("setting_toggle_graphics")
+                                    )
+                                }
+
+                                // 3b. Tablet View Dynamic Scale Toggle
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0x06FFFFFF))
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("PANORAMIC TABLET MODE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                        Text("Spacious camera zoom (Snake.io style)", color = Color.Gray, fontSize = 8.5.sp)
+                                    }
+                                    Switch(
+                                        checked = isWideViewportMode,
+                                        onCheckedChange = { isWideViewportMode = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color(0xFF00FFCC),
+                                            checkedTrackColor = Color(0x3300FFCC),
+                                            uncheckedThumbColor = Color.Gray,
+                                            uncheckedTrackColor = Color.Black
+                                        ),
+                                        modifier = Modifier.testTag("setting_toggle_tablet_view")
                                     )
                                 }
 

@@ -1,203 +1,132 @@
-// GameEngine.kt
 package com.example.game
 
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.compose.ui.graphics.Color
+import java.util.UUID
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
-import java.util.UUID
 
-/**
- * The core game engine that manages all logic, AI, physics, and events.
- * Uses data classes from GameModels.kt.
- */
 class GameEngine {
+    // Arena Boundaries (Upgraded map size to a spacious 4000f x 4000f)
+    var arenaWidth = 4000f
+    var arenaHeight = 4000f
 
-    // ---------- Arena & Game Configuration ----------
-    var arenaWidth = 2000f
-    var arenaHeight = 2000f
+    // Match configurations
     var gameMode: String = "Casual" // Casual, Ranked, Battle Royale, Private Room
     var arenaTheme: ArenaTheme = ArenaTheme.CYBER_CITY
-    var selectedPlayerAbility = "SHIELD"
 
-    // ---------- Thread‑safe Collections ----------
-    private val _snakes = mutableListOf<Snake>()
-    private val _orbs = mutableListOf<Orb>()
-    private val _particles = mutableListOf<Particle>()
-    private val _floatingTexts = mutableListOf<FloatingText>()
-    private val _powerUps = mutableListOf<PowerUp>()
-    private val _hazards = mutableListOf<Hazard>()
-    private val _killEvents = mutableListOf<KillEvent>()
+    // Lists of objects
+    val snakes = mutableListOf<Snake>()
+    val orbs = mutableListOf<Orb>()
+    val particles = mutableListOf<Particle>()
+    val floatingTexts = mutableListOf<FloatingText>()
+    val powerUps = mutableListOf<PowerUp>()
+    val hazards = mutableListOf<Hazard>()
+    val killEvents = mutableListOf<KillEvent>()
 
-    // Public read‑only copies (safe for UI iteration)
-    val snakes: List<Snake> get() = synchronized(_snakes) { _snakes.toList() }
-    val orbs: List<Orb> get() = synchronized(_orbs) { _orbs.toList() }
-    val particles: List<Particle> get() = synchronized(_particles) { _particles.toList() }
-    val floatingTexts: List<FloatingText> get() = synchronized(_floatingTexts) { _floatingTexts.toList() }
-    val powerUps: List<PowerUp> get() = synchronized(_powerUps) { _powerUps.toList() }
-    val hazards: List<Hazard> get() = synchronized(_hazards) { _hazards.toList() }
-    val killEvents: List<KillEvent> get() = synchronized(_killEvents) { _killEvents.toList() }
-
-    // ---------- Player & Game State ----------
+    // Player instance
     var playerSnake: Snake? = null
-        private set
 
     // Battle Royale safe zone
-    var safeZoneRadius = 1200f
-    var safeZoneCenter = Vector2D(1000f, 1000f)
+    var safeZoneRadius = 2500f
+    var safeZoneCenter = Vector2D(2000f, 2000f)
     var isSafeZoneShrinking = false
 
-    // Leaderboard
+    // Leaderboard tracking
     var alivePlayersCount = 0
-        private set
     val rankingList = mutableListOf<Pair<String, Int>>()
 
-    // Game outcomes
-    var isGameOver = false  // now public
+    // Game states
+    var isGameOver = false
     var isVictory = false
-        private set
     var rankingPlacement = 0
-        private set
     var totalCoinsEarned = 0
-        private set
     var totalXpEarned = 0
-        private set
     var totalKills = 0
-        private set
 
-    // Camera shake & weather
+    // Premium Juice, Camera Shake & Map Events
     var cameraShake = 0f
-        private set
-    var activeWeather = "NORMAL"
-        private set
+    var activeWeather = "NORMAL" // "NORMAL", "ENERGY_STORM", "ERUPTION", "ICE_BLIZZARD", "ANCIENT_RITUAL", "GRAVITY_SHIFT", "OVERCHARGE_PULSE"
+    var weatherTimer = 180 // frames until next weather shift/event
     var activeEventName = "CALM"
-        private set
+    var eventDuration = 120
+    var selectedPlayerAbility = "SHIELD" // "SHIELD", "FREEZE_PULSE", "EMP_BLAST", "SPEED_BURST", "GHOST_PHASE"
 
-    // Haptic callback (set by UI)
+    // Callback on game updates for sound/haptics
     var onHapticTrigger: ((hapticType: String) -> Unit)? = null
 
-    // ---------- Constants (all in frames at 60 fps) ----------
-    companion object {
-    private const val FRAME_RATE = 60
-    private fun secondsToFrames(seconds: Int) = seconds * FRAME_RATE
-    private fun secondsToFramesFloat(seconds: Float) = (seconds * FRAME_RATE).toInt()
-
-    // All these are now normal `val` (not `const`) because they are runtime-computed.
-    private val ABILITY_SHIELD_DURATION = secondsToFrames(3)
-    private val ABILITY_FREEZE_DURATION = secondsToFrames(3)
-    private val ABILITY_EMP_DURATION = secondsToFrames(3)
-    private val ABILITY_SPEED_BURST_DURATION = secondsToFramesFloat(1.6f)
-    private val ABILITY_GHOST_DURATION = secondsToFrames(3)
-
-    private val COOLDOWN_SHIELD = secondsToFrames(9)
-    private val COOLDOWN_FREEZE = secondsToFrames(10)
-    private val COOLDOWN_EMP = secondsToFrames(11)
-    private val COOLDOWN_SPEED = secondsToFrames(7)
-    private val COOLDOWN_GHOST = secondsToFrames(9)
-
-    private val POWERUP_DURATION = secondsToFrames(5)
-    private val WEATHER_DURATION = secondsToFrames(3)
-
-    private const val ORB_SPAWN_COUNT = 30
-    private const val MAX_ORBS = 100
-    private const val MIN_SAFE_ZONE_RADIUS = 300f
-    private const val SHRINK_SPEED = 0.25f
-    private const val TURN_SPEED_BASE = 0.15f
-    private const val TURN_SPEED_SLIP = 0.06f
-    private const val TURN_SPEED_BOOST = 0.22f
-    private const val SPEED_BASE = 4.0f
-    private const val SPEED_BOOST = 7.5f
-    private const val SPEED_SLOW_FROZEN = 1.5f
-    private const val SPEED_SLOW_EMPED = 2.8f
-    private const val SPEED_BURST_MAX = 13.0f
-
-    private const val MAGNET_RANGE = 185f
-    private const val MAGNET_PULL_FACTOR = 6.5f
-
-    private const val BOT_SPEED_BASE = 3.5f
-    private const val BOT_SPEED_BOOST = 6.5f
-    private const val BOT_TURN_SPEED = 0.08f
-    private const val BOT_TURN_SLIP = 0.03f
-    private const val BOT_TURN_ESCAPE = 0.25f
-
-    private const val BODY_SEGMENT_GAP = 6
-    private const val EAT_RADIUS = 32f
-    private const val HAZARD_ACTIVE_PHASE = 84
-    private const val HAZARD_CYCLE = 120
-
-    private const val CELESTIAL_ORB_POINTS = 100
-    private const val SUPER_ORB_POINTS = 25
-    private const val NORMAL_ORB_POINTS = 5
-
-    private const val COINS_PER_SCORE = 1 // placeholder
-    private const val XP_PER_SCORE = 1
-    private const val KILL_COINS = 100
-    private const val KILL_XP = 400
-    private const val WIN_COINS = 500
-    private const val WIN_XP = 1000
-}
-    // Internal timers
-    private var weatherTimer = 180
-    private var eventDuration = 0
-
-    // ---------- Initialisation ----------
     init {
         resetEngine()
     }
 
-    // ---------- Public API ----------
-
     fun resetEngine() {
-        // Clear all collections
-        synchronized(_snakes) { _snakes.clear() }
-        synchronized(_orbs) { _orbs.clear() }
-        synchronized(_particles) { _particles.clear() }
-        synchronized(_floatingTexts) { _floatingTexts.clear() }
-        synchronized(_powerUps) { _powerUps.clear() }
-        synchronized(_hazards) { _hazards.clear() }
-        synchronized(_killEvents) { _killEvents.clear() }
-
-        // Reset state
+        snakes.clear()
+        orbs.clear()
+        particles.clear()
+        floatingTexts.clear()
+        powerUps.clear()
+        hazards.clear()
+        killEvents.clear()
         isGameOver = false
         isVictory = false
         rankingPlacement = 0
         totalCoinsEarned = 0
         totalXpEarned = 0
         totalKills = 0
-        safeZoneRadius = if (gameMode == "Battle Royale") 1200f else 2200f
+        safeZoneRadius = if (gameMode == "Battle Royale") 2500f else 4500f
+        safeZoneCenter = Vector2D(arenaWidth / 2f, arenaHeight / 2f)
         isSafeZoneShrinking = gameMode == "Battle Royale"
-        cameraShake = 0f
-        activeWeather = "NORMAL"
-        activeEventName = "CALM"
-        weatherTimer = 400
-        eventDuration = 0
 
         val random = Random(System.currentTimeMillis())
-
-        // Spawn theme hazards
-        val hazardConfig = when (arenaTheme) {
-            ArenaTheme.CYBER_CITY -> listOf("electro_gate" to 5 to 50f)
-            ArenaTheme.LAVA_WORLD -> listOf("lava_pit" to 6 to 65f)
-            ArenaTheme.FROZEN_ARENA -> listOf("ice_spike" to 7 to 45f)
-            ArenaTheme.JUNGLE_TEMPLE -> listOf("totem" to 4 to 55f)
-            ArenaTheme.SPACE_STATION -> listOf("quantum_vortex" to 3 to 80f)
-            ArenaTheme.NEON_GRID -> listOf("neon_gate" to 5 to 40f)
-        }
-        hazardConfig.forEach { (typeCount, size) ->
-            val (type, count) = typeCount
-            repeat(count) { i ->
-                val pos = Vector2D(
-                    random.nextFloat() * (arenaWidth - 400f) + 200f,
-                    random.nextFloat() * (arenaHeight - 400f) + 200f
-                )
-                synchronized(_hazards) {
-                    _hazards.add(Hazard("${type}_$i", type, pos, size))
+        when (arenaTheme) {
+            ArenaTheme.CYBER_CITY -> {
+                for (i in 0 until 12) {
+                    val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
+                    hazards.add(Hazard(id = "electro_$i", type = "electro_gate", position = pos, size = 50f))
+                }
+            }
+            ArenaTheme.LAVA_WORLD -> {
+                for (i in 0 until 14) {
+                    val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
+                    hazards.add(Hazard(id = "lava_$i", type = "lava_pit", position = pos, size = 65f))
+                }
+            }
+            ArenaTheme.FROZEN_ARENA -> {
+                for (i in 0 until 16) {
+                    val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
+                    hazards.add(Hazard(id = "ice_$i", type = "ice_spike", position = pos, size = 45f))
+                }
+            }
+            ArenaTheme.JUNGLE_TEMPLE -> {
+                for (i in 0 until 10) {
+                    val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
+                    hazards.add(Hazard(id = "totem_$i", type = "totem", position = pos, size = 55f))
+                }
+            }
+            ArenaTheme.SPACE_STATION -> {
+                for (i in 0 until 8) {
+                    val pos = Vector2D(random.nextFloat() * (arenaWidth - 500f) + 250f, random.nextFloat() * (arenaHeight - 500f) + 250f)
+                    hazards.add(Hazard(id = "vortex_$i", type = "quantum_vortex", position = pos, size = 80f))
+                }
+            }
+            ArenaTheme.NEON_GRID -> {
+                for (i in 0 until 12) {
+                    val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
+                    hazards.add(Hazard(id = "laser_$i", type = "neon_gate", position = pos, size = 40f))
                 }
             }
         }
 
-        // Player snake
+        // Reset Screen effects state
+        cameraShake = 0f
+        activeWeather = "NORMAL"
+        weatherTimer = 400
+
+        // Setup Player Snake
         val player = Snake(
             id = "player",
             name = "You (Legend)",
@@ -207,808 +136,53 @@ class GameEngine {
             secondaryColor = Color(0xFF0099FF),
             activeAbilityType = selectedPlayerAbility
         )
-        repeat(player.length) { i ->
+        // Set body segment history
+        for (i in 0 until player.length) {
             player.body.add(Vector2D(player.position.x, player.position.y + i * 15f))
         }
         playerSnake = player
-        synchronized(_snakes) { _snakes.add(player) }
+        snakes.add(player)
 
-        // Bot snakes
+        // Spawn Bot Snakes (up to 15 bots)
         val botNames = listOf(
             "ViperX", "ShadowCrawl", "NeonVenom", "ApexViper", "SlitherKing",
             "SlinkyMaster", "Wraith", "CobaltFangs", "CrimsonOuroboros", "GlitchSnake",
             "StealthBoa", "HydraMax", "PhantomStrider", "AbyssGlow", "VenomGod"
         )
-        val abilities = listOf("SHIELD", "FREEZE_PULSE", "EMP_BLAST", "SPEED_BURST", "GHOST_PHASE")
-        botNames.forEachIndexed { i, name ->
-            val angle = random.nextFloat() * 6.28f
-            val pos = Vector2D(
-                random.nextFloat() * (arenaWidth - 400f) + 200f,
-                random.nextFloat() * (arenaHeight - 400f) + 200f
+
+        for (i in 0 until botNames.size) {
+            val botAngle = Random.nextFloat() * 6.28f
+            val botPos = Vector2D(
+                Random.nextFloat() * (arenaWidth - 400f) + 200f,
+                Random.nextFloat() * (arenaHeight - 400f) + 200f
             )
-            val (primary, secondary) = getRandomColorsForBot()
+            val colors = getRandomColorsForBot()
             val bot = Snake(
                 id = "bot_$i",
-                name = name,
+                name = botNames[i],
                 isPlayer = false,
-                position = pos,
-                angle = angle,
-                primaryColor = primary,
-                secondaryColor = secondary,
-                skinName = getRandomSkinName(),
-                activeAbilityType = abilities.random()
+                position = botPos,
+                angle = botAngle,
+                primaryColor = colors.first,
+                secondaryColor = colors.second,
+                skinName = getRandomSkinName()
             )
-            repeat(bot.length) { j ->
-                bot.body.add(Vector2D(pos.x, pos.y + j * 15f))
+            // Assign random active ability to bots
+            bot.activeAbilityType = listOf("SHIELD", "FREEZE_PULSE", "EMP_BLAST", "SPEED_BURST", "GHOST_PHASE").random()
+            for (j in 0 until bot.length) {
+                bot.body.add(Vector2D(botPos.x, botPos.y + j * 15f))
             }
-            synchronized(_snakes) { _snakes.add(bot) }
+            snakes.add(bot)
         }
 
-        spawnOrbs(120)
-        spawnPowerUps(6)
+        // Spawn initial energy orbs (Upgraded density to match the spacious 4000x4000 arena size!)
+        spawnOrbs(450)
+        spawnPowerUps(15)
         updateLeaderboard()
     }
-
-    /**
-     * Syncs multiplayer snake data from a peer map.
-     * Requires that `PeerSnakeData` is defined elsewhere (e.g. in MultiplayerManager.kt).
-     */
-    fun syncMultiplayerSnakes(peers: Map<String, PeerSnakeData>) {
-        synchronized(_snakes) {
-            val mpIds = peers.keys.map { "mp_$it" }.toSet()
-            peers.forEach { (username, peerData) ->
-                val peerId = "mp_$username"
-                val existing = _snakes.firstOrNull { it.id == peerId }
-                val primaryColor = try {
-                    Color(android.graphics.Color.parseColor(peerData.primaryColorHex))
-                } catch (_: Exception) {
-                    Color(0xFFFF3366)
-                }
-                val secondaryColor = try {
-                    Color(android.graphics.Color.parseColor(peerData.secondaryColorHex))
-                } catch (_: Exception) {
-                    Color(0xFFFF9900)
-                }
-                if (existing == null) {
-                    val snake = Snake(
-                        id = peerId,
-                        name = peerData.name,
-                        isPlayer = false,
-                        position = peerData.position,
-                        angle = peerData.angle,
-                        speed = peerData.speed,
-                        length = peerData.length,
-                        score = peerData.score,
-                        primaryColor = primaryColor,
-                        secondaryColor = secondaryColor,
-                        isBoosting = peerData.isBoosting,
-                        isAlive = peerData.isAlive
-                    )
-                    snake.body.addAll(peerData.body)
-                    _snakes.add(snake)
-                } else {
-                    existing.position = peerData.position
-                    existing.angle = peerData.angle
-                    existing.speed = peerData.speed
-                    existing.length = peerData.length
-                    existing.score = peerData.score
-                    existing.isBoosting = peerData.isBoosting
-                    existing.isAlive = peerData.isAlive
-                    existing.body.clear()
-                    existing.body.addAll(peerData.body)
-                }
-            }
-            _snakes.removeAll { it.id.startsWith("mp_") && it.id !in mpIds }
-        }
-    }
-
-    /**
-     * Called every game frame (typically 60 times per second).
-     * @param joystickAngle direction of the joystick in radians, or null if not moving
-     * @param isBoosting whether the player is holding the boost button
-     * @param abilityTriggered whether the player just triggered an ability
-     */
-    fun onTick(
-        joystickAngle: Float?,
-        isBoosting: Boolean,
-        abilityTriggered: Boolean
-    ) {
-        if (isGameOver) return
-
-        // 1. Decay camera shake
-        cameraShake = (cameraShake - 0.45f).coerceAtLeast(0f)
-
-        // 2. Weather
-        updateWeather()
-
-        val player = playerSnake ?: return
-
-        // 3. Update timers & statuses
-        updateSnakeStatuses()
-
-        // 4. Magnet pull
-        processMagnetPull()
-
-        // 5. Power‑up pickups
-        processPowerUpPickups()
-
-        // 6. Hazards
-        processHazards()
-
-        // 7. Player ability trigger
-        if (abilityTriggered && player.abilityCooldownRemaining <= 0 && !player.specialAbilityActive && player.isAlive) {
-            triggerAbility(player)
-        }
-
-        // 8. Move player
-        moveSnake(player, joystickAngle, isBoosting, isPlayer = true)
-
-        // 9. Move bots
-        moveBotSnakes()
-
-        // 10. Head‑to‑body collisions
-        processCollisions()
-
-        // 11. Eat orbs
-        processOrbEating()
-
-        // 12. Update particles & texts
-        updateParticlesAndTexts()
-
-        // 13. Clean dead non‑players
-        synchronized(_snakes) {
-            _snakes.removeAll { !it.isAlive && !it.isPlayer }
-        }
-
-        // 14. Game over / victory
-        checkGameEndConditions()
-
-        updateLeaderboard()
-    }
-
-    // ---------- Private Helpers ----------
-
-    private fun updateWeather() {
-        weatherTimer--
-        if (weatherTimer <= 0) {
-            weatherTimer = Random.nextInt(320, 550)
-            val possible = when (arenaTheme) {
-                ArenaTheme.CYBER_CITY -> listOf("NORMAL", "ENERGY_STORM")
-                ArenaTheme.LAVA_WORLD -> listOf("NORMAL", "ERUPTION")
-                ArenaTheme.FROZEN_ARENA -> listOf("NORMAL", "ICE_BLIZZARD")
-                ArenaTheme.JUNGLE_TEMPLE -> listOf("NORMAL", "ANCIENT_RITUAL")
-                ArenaTheme.SPACE_STATION -> listOf("NORMAL", "GRAVITY_SHIFT")
-                ArenaTheme.NEON_GRID -> listOf("NORMAL", "OVERCHARGE_PULSE")
-            }
-            activeWeather = if (activeWeather == "NORMAL") possible.random() else "NORMAL"
-
-            if (activeWeather != "NORMAL") {
-                cameraShake = 16f
-                triggerHaptic("heavy")
-                eventDuration = WEATHER_DURATION
-                activeEventName = when (activeWeather) {
-                    "ENERGY_STORM" -> "ELECTRON LIGHTNING HURRICANE!"
-                    "ERUPTION" -> "LAVA VOLCANO ERUPTION!"
-                    "ICE_BLIZZARD" -> "SUB‑ZERO COLD ICE BLIZZARD!"
-                    "ANCIENT_RITUAL" -> "ANCIENT TOTEM RUNES ACTIVE!"
-                    "GRAVITY_SHIFT" -> "AIRLOCK GRAVITY ANOMALY WELL!"
-                    "OVERCHARGE_PULSE" -> "OVERCHARGED GRID ENERGY OVERLOAD!"
-                    else -> "ARENA CRITICAL OUTBREAK EVENT!"
-                }
-                playerSnake?.let { p ->
-                    addFloatingText(p.position, "MAP WARNING: $activeEventName", Color(0xFFFF3366))
-                }
-            } else {
-                activeEventName = "CALM"
-                playerSnake?.let { p ->
-                    addFloatingText(p.position, "ARENA STABILIZED", Color(0xFF00FFCC))
-                }
-            }
-        }
-
-        // Active weather effects
-        if (eventDuration > 0) {
-            eventDuration--
-            when (activeWeather) {
-                "ENERGY_STORM" -> {
-                    cameraShake = maxOf(cameraShake, 1.3f)
-                    if (Random.nextInt(50) == 0) {
-                        val alive = getAliveSnakes()
-                        if (alive.isNotEmpty()) {
-                            val victim = alive.random()
-                            victim.isEmped = true
-                            victim.empTimer = 120
-                            addFloatingText(victim.position, "STRUCK BY LIGHTNING STUN!", Color(0xFFFFFF33))
-                            if (victim.isPlayer) {
-                                triggerHaptic("medium")
-                                cameraShake = 10f
-                            }
-                        }
-                    }
-                }
-                "ERUPTION" -> {
-                    cameraShake = maxOf(cameraShake, 1.8f)
-                    if (Random.nextInt(25) == 0) {
-                        val lavaBall = Vector2D(Random.nextFloat() * arenaWidth, Random.nextFloat() * arenaHeight)
-                        synchronized(_orbs) {
-                            _orbs.add(Orb(UUID.randomUUID().toString(), lavaBall, 14f, Color(0xFFFF5722), 40, true))
-                        }
-                        repeat(5) {
-                            addParticle(
-                                lavaBall,
-                                Vector2D(Random.nextFloat() * 6f - 3f, Random.nextFloat() * 6f - 3f),
-                                Color(0xFFFF4500),
-                                fadeSpeed = 0.04f,
-                                size = 12f
-                            )
-                        }
-                    }
-                }
-                "GRAVITY_SHIFT" -> {
-                    val center = Vector2D(arenaWidth / 2f, arenaHeight / 2f)
-                    synchronized(_snakes) {
-                        _snakes.filter { it.isAlive }.forEach { snake ->
-                            val pullDir = (center - snake.position).normalized()
-                            snake.position += pullDir * 1.6f
-                        }
-                    }
-                }
-                "OVERCHARGE_PULSE" -> {
-                    if (Random.nextInt(12) == 0) {
-                        val sparkPos = Vector2D(Random.nextFloat() * arenaWidth, Random.nextFloat() * arenaHeight)
-                        addParticle(sparkPos, Vector2D(0f, 0f), Color(0xFF00FFCC), fadeSpeed = 0.03f, size = 14f)
-                    }
-                }
-            }
-        }
-
-        // Shrink safe zone (Battle Royale)
-        if (gameMode == "Battle Royale" && isSafeZoneShrinking) {
-            safeZoneRadius = (safeZoneRadius - SHRINK_SPEED).coerceAtLeast(MIN_SAFE_ZONE_RADIUS)
-        }
-    }
-
-    private fun getAliveSnakes(): List<Snake> = synchronized(_snakes) { _snakes.filter { it.isAlive } }
-
-    private fun updateSnakeStatuses() {
-        synchronized(_snakes) {
-            _snakes.forEach { snake ->
-                if (!snake.isAlive) return@forEach
-
-                // Ability cooldowns
-                if (snake.abilityCooldownRemaining > 0) snake.abilityCooldownRemaining--
-                if (snake.abilityActiveDuration > 0) {
-                    snake.abilityActiveDuration--
-                    if (snake.abilityActiveDuration <= 0) {
-                        snake.specialAbilityActive = false
-                        if (snake.activeAbilityType == "GHOST_PHASE") {
-                            snake.activePowerUpType = null
-                        }
-                    }
-                }
-
-                // Debuffs
-                if (snake.isFrozen) {
-                    snake.freezeTimer--
-                    if (snake.freezeTimer <= 0) snake.isFrozen = false
-                }
-                if (snake.isEmped) {
-                    snake.empTimer--
-                    if (snake.empTimer <= 0) snake.isEmped = false
-                }
-
-                // Power‑up timer (except ghost which is ability‑driven)
-                if (snake.activePowerUpType != null && snake.activeAbilityType != "GHOST_PHASE") {
-                    snake.powerUpTimer--
-                    if (snake.powerUpTimer <= 0) {
-                        snake.activePowerUpType = null
-                    }
-                }
-            }
-        }
-    }
-
-    private fun processMagnetPull() {
-        synchronized(_snakes) {
-            synchronized(_orbs) {
-                _snakes.filter { it.isAlive && it.activePowerUpType == PowerUpType.MAGNET }.forEach { snake ->
-                    _orbs.forEach { orb ->
-                        val dist = snake.position.distance(orb.position)
-                        if (dist < MAGNET_RANGE) {
-                            val pullForce = ((MAGNET_RANGE - dist) / MAGNET_RANGE) * MAGNET_PULL_FACTOR + 1.5f
-                            val pullDir = (snake.position - orb.position).normalized()
-                            orb.position += pullDir * pullForce
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun processPowerUpPickups() {
-        val toRemove = mutableListOf<String>()
-        synchronized(_powerUps) {
-            synchronized(_snakes) {
-                _powerUps.forEach { powerUp ->
-                    _snakes.filter { it.isAlive }.forEach { snake ->
-                        if (snake.position.distance(powerUp.position) < 38f) {
-                            toRemove.add(powerUp.id)
-                            if (powerUp.type == PowerUpType.GROWTH) {
-                                snake.score += 75
-                                snake.length = 4 + (snake.score / 25)
-                                if (snake.isPlayer) {
-                                    totalCoinsEarned += 25
-                                    totalXpEarned += 100
-                                    addFloatingText(snake.position, "GROWTH POTION +3 SEGMENTS!", Color(0xFF66BB6A))
-                                    triggerHaptic("heavy")
-                                    cameraShake = 6f
-                                }
-                            } else {
-                                snake.activePowerUpType = powerUp.type
-                                snake.powerUpTimer = POWERUP_DURATION
-                                if (snake.isPlayer) {
-                                    val msg = when (powerUp.type) {
-                                        PowerUpType.MAGNET -> "MAGNET FORCEFIELD ACTIVE!"
-                                        PowerUpType.DOUBLE_POINTS -> "DOUBLE POINTS MULTIPLIER!"
-                                        PowerUpType.SHIELD -> "FORCEFIELD SHIELD ACTIVE!"
-                                        PowerUpType.GHOST -> "GHOST MODE: PHASE THROUGH WALLS!"
-                                        PowerUpType.SPEED_BOOST -> "SPEED BOOST VELOCITY ACTIVATED!"
-                                        else -> "UPGRADE ACTIVE!"
-                                    }
-                                    addFloatingText(snake.position, msg, powerUp.color)
-                                    triggerHaptic("medium")
-                                    cameraShake = 4f
-                                }
-                            }
-                            return@forEach // one snake per power‑up
-                        }
-                    }
-                }
-            }
-        }
-        if (toRemove.isNotEmpty()) {
-            synchronized(_powerUps) { _powerUps.removeAll { it.id in toRemove } }
-            spawnPowerUps(toRemove.size)
-        }
-    }
-
-    private fun processHazards() {
-        synchronized(_hazards) {
-            synchronized(_snakes) {
-                _hazards.forEach { hazard ->
-                    hazard.state = (hazard.state + 1) % 360
-                    _snakes.filter { it.isAlive }.forEach { snake ->
-                        val dist = snake.position.distance(hazard.position)
-                        when (hazard.type) {
-                            "lava_pit" -> {
-                                if (dist < hazard.size + 15f) {
-                                    if (!isInvulnerable(snake) && Random.nextInt(15) == 0) {
-                                        snake.length = maxOf(3, snake.length - 1)
-                                        if (snake.isPlayer) {
-                                            addFloatingText(snake.position, "THERMAL LAVA BURN! -1 RING", Color(0xFFFF4500))
-                                            triggerHaptic("medium")
-                                            cameraShake = 7f
-                                        }
-                                        addParticle(snake.position, Vector2D(Random.nextFloat() * 2f - 1f, -2f), Color(0xFFFF9900), alpha = 0.9f)
-                                    }
-                                }
-                            }
-                            "electro_gate" -> {
-                                val active = (hazard.state % HAZARD_CYCLE) < HAZARD_ACTIVE_PHASE
-                                if (active && dist < hazard.size + 10f) {
-                                    if (!isInvulnerable(snake)) {
-                                        killSnake(snake, null, "electro_gate")
-                                    }
-                                }
-                            }
-                            "ice_spike" -> {
-                                if (dist < hazard.size + 12f) {
-                                    if (!isInvulnerable(snake)) {
-                                        killSnake(snake, null, "ice_spike")
-                                    } else {
-                                        val pushDir = (snake.position - hazard.position).normalized()
-                                        snake.position = hazard.position + pushDir * (hazard.size + 20f)
-                                        snake.angle = atan2(pushDir.y.toDouble(), pushDir.x.toDouble()).toFloat()
-                                    }
-                                }
-                            }
-                            "totem" -> {
-                                if (dist < hazard.size + 40f && Random.nextInt(20) == 0) {
-                                    snake.score += 15
-                                    snake.length = 4 + (snake.score / 25)
-                                    if (snake.isPlayer) {
-                                        addFloatingText(snake.position, "ANCIENT COGNITION +15", Color(0xFF81C784))
-                                        triggerHaptic("light")
-                                    }
-                                }
-                            }
-                            "quantum_vortex" -> {
-                                if (dist < hazard.size + 150f) {
-                                    val suction = ((hazard.size + 150f) - dist) / (hazard.size + 150f) * 3f
-                                    val pullDir = (hazard.position - snake.position).normalized()
-                                    snake.position += pullDir * suction
-                                    if (dist < hazard.size * 0.45f) {
-                                        if (!isInvulnerable(snake)) {
-                                            killSnake(snake, null, "quantum_vortex")
-                                        }
-                                    }
-                                }
-                            }
-                            "neon_gate" -> {
-                                val blocked = (hazard.state % 180) > 90
-                                if (blocked && dist < hazard.size + 12f) {
-                                    if (!isInvulnerable(snake) && Random.nextInt(8) == 0) {
-                                        snake.length = maxOf(3, snake.length - 1)
-                                        if (snake.isPlayer) {
-                                            addFloatingText(snake.position, "LASER GATE GLITCH! -1 RING", Color(0xFF00E5FF))
-                                            triggerHaptic("heavy")
-                                            cameraShake = 8f
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun isInvulnerable(snake: Snake): Boolean =
-        snake.activePowerUpType == PowerUpType.SHIELD ||
-                snake.activePowerUpType == PowerUpType.GHOST ||
-                snake.specialAbilityActive
-
-    private fun killSnake(snake: Snake, killer: Snake?, cause: String) {
-        if (!snake.isAlive) return
-        snake.isAlive = false
-        if (snake.isPlayer) {
-            triggerHaptic("heavy")
-            cameraShake = 25f
-        } else if (killer?.isPlayer == true) {
-            totalKills++
-            totalCoinsEarned += KILL_COINS
-            totalXpEarned += KILL_XP
-            addFloatingText(snake.position, "KILL +${KILL_XP} XP", Color(0xFFFF5252))
-            triggerHaptic("heavy")
-            cameraShake = 20f
-        }
-        publishKill(killer, snake, cause)
-        eliminateSnake(snake)
-    }
-
-    private fun moveSnake(snake: Snake, joystickAngle: Float?, isBoosting: Boolean, isPlayer: Boolean) {
-        if (!snake.isAlive) return
-
-        // Player controls
-        if (isPlayer) {
-            if (joystickAngle != null) {
-                var diff = joystickAngle - snake.angle
-                while (diff < -Math.PI) diff += (2 * Math.PI).toFloat()
-                while (diff > Math.PI) diff -= (2 * Math.PI).toFloat()
-                var turnSpeed = TURN_SPEED_BASE
-                if (activeWeather == "ICE_BLIZZARD") turnSpeed = TURN_SPEED_SLIP
-                else if (snake.abilityActiveDuration > 0 && snake.activeAbilityType == "SPEED_BURST") turnSpeed = TURN_SPEED_BOOST
-                snake.angle += diff * turnSpeed
-            }
-            snake.isBoosting = isBoosting && snake.length > 5 && !snake.isEmped && !snake.isFrozen
-        }
-
-        // Speed calculation
-        var targetSpeed = if (snake.isBoosting) SPEED_BOOST else SPEED_BASE
-        if (snake.activePowerUpType == PowerUpType.SPEED_BOOST) targetSpeed *= 1.6f
-        if (snake.isFrozen) targetSpeed = SPEED_SLOW_FROZEN
-        if (snake.isEmped) targetSpeed = SPEED_SLOW_EMPED
-        if (snake.abilityActiveDuration > 0 && snake.activeAbilityType == "SPEED_BURST") {
-            targetSpeed = SPEED_BURST_MAX
-        }
-        snake.speed += (targetSpeed - snake.speed) * 0.14f
-
-        if (snake.speed > 8f) cameraShake = maxOf(cameraShake, 1.1f)
-
-        // Move
-        val dirX = cos(snake.angle.toDouble()).toFloat()
-        val dirY = sin(snake.angle.toDouble()).toFloat()
-        snake.position += Vector2D(dirX * snake.speed, dirY * snake.speed)
-
-        // Boost length loss
-        if (snake.isBoosting && Random.nextInt(12) == 0 && snake.length > 5) {
-            snake.length--
-            val lastSeg = snake.body.lastOrNull() ?: snake.position
-            synchronized(_orbs) {
-                _orbs.add(Orb(UUID.randomUUID().toString(), lastSeg, 5f, snake.primaryColor, 4, false))
-            }
-            if (snake.body.size > snake.length) {
-                snake.body.removeAt(snake.body.lastIndex)
-            }
-        }
-
-        updateBodySegments(snake)
-
-        // Boost particles
-        if (snake.isBoosting && Random.nextInt(3) == 0) {
-            addParticle(snake.position, Vector2D(-dirX * 3f, -dirY * 3f), snake.primaryColor, fadeSpeed = 0.08f, size = 6f)
-        }
-
-        // Boundary handling
-        if (snake.activePowerUpType == PowerUpType.GHOST || (snake.specialAbilityActive && snake.activeAbilityType == "GHOST_PHASE")) {
-            // Wrap around
-            if (snake.position.x < 0) {
-                snake.position = Vector2D(arenaWidth, snake.position.y)
-                snake.body.clear()
-            } else if (snake.position.x > arenaWidth) {
-                snake.position = Vector2D(0f, snake.position.y)
-                snake.body.clear()
-            }
-            if (snake.position.y < 0) {
-                snake.position = Vector2D(snake.position.x, arenaHeight)
-                snake.body.clear()
-            } else if (snake.position.y > arenaHeight) {
-                snake.position = Vector2D(snake.position.x, 0f)
-                snake.body.clear()
-            }
-        } else {
-            if (snake.position.x < 0 || snake.position.x > arenaWidth ||
-                snake.position.y < 0 || snake.position.y > arenaHeight
-            ) {
-                if (isPlayer) {
-                    killSnake(snake, null, "border")
-                } else {
-                    // Bots bounce back
-                    snake.position = Vector2D(
-                        snake.position.x.coerceIn(30f, arenaWidth - 30f),
-                        snake.position.y.coerceIn(30f, arenaHeight - 30f)
-                    )
-                }
-            }
-        }
-
-        // Safe zone damage (Battle Royale)
-        if (gameMode == "Battle Royale") {
-            if (snake.position.distance(safeZoneCenter) > safeZoneRadius) {
-                if (Random.nextInt(15) == 0) {
-                    snake.length--
-                    addFloatingText(snake.position, "-1 RING BURNING", Color(0xFFFF3333))
-                    cameraShake = 5f
-                    if (snake.length < 3) {
-                        killSnake(snake, null, "safe_zone")
-                    }
-                }
-            }
-        }
-    }
-
-    private fun moveBotSnakes() {
-        synchronized(_snakes) {
-            _snakes.filter { !it.isPlayer && it.isAlive && !it.id.startsWith("mp_") }.forEach { snake ->
-                // AI ability trigger
-                if (snake.abilityCooldownRemaining <= 0) {
-                    val nearby = _snakes.firstOrNull { it.id != snake.id && it.isAlive && it.position.distance(snake.position) < 220f }
-                    if (nearby != null) triggerAbility(snake)
-                }
-
-                // Target selection
-                snake.botTargetTimer--
-                if (snake.botTarget == null || snake.botTargetTimer <= 0) {
-                    snake.botTargetTimer = Random.nextInt(60, 150)
-                    val choice = Random.nextLong(100)
-                    when {
-                        choice < 60 -> {
-                            val aliveOrbs = synchronized(_orbs) { _orbs.toList() }
-                            if (aliveOrbs.isNotEmpty()) {
-                                val nearest = aliveOrbs.minByOrNull { it.position.distance(snake.position) }
-                                snake.botTarget = nearest?.position
-                            }
-                        }
-                        choice < 90 -> {
-                            val others = _snakes.filter { it.id != snake.id && it.isAlive }
-                            if (others.isNotEmpty()) {
-                                snake.botTarget = others.random().position
-                            }
-                        }
-                        else -> {
-                            snake.botTarget = Vector2D(Random.nextFloat() * arenaWidth, Random.nextFloat() * arenaHeight)
-                        }
-                    }
-                    if (snake.botTarget == null) {
-                        snake.botTarget = Vector2D(arenaWidth / 2f, arenaHeight / 2f)
-                    }
-                }
-
-                // Turn toward target
-                val target = snake.botTarget ?: return@forEach
-                val dx = target.x - snake.position.x
-                val dy = target.y - snake.position.y
-                val targetAngle = atan2(dy.toDouble(), dx.toDouble()).toFloat()
-                var diff = targetAngle - snake.angle
-                while (diff < -Math.PI) diff += (2 * Math.PI).toFloat()
-                while (diff > Math.PI) diff -= (2 * Math.PI).toFloat()
-
-                var turnSpeed = BOT_TURN_SPEED
-                if (activeWeather == "ICE_BLIZZARD") turnSpeed = BOT_TURN_SLIP
-                if (snake.position.x < 150f || snake.position.x > arenaWidth - 150f ||
-                    snake.position.y < 150f || snake.position.y > arenaHeight - 150f
-                ) {
-                    turnSpeed = BOT_TURN_ESCAPE
-                }
-                snake.angle += diff.coerceIn(-turnSpeed, turnSpeed)
-
-                // Random boost toggle
-                if (Random.nextInt(50) == 0 && snake.length > 8 && !snake.isFrozen && !snake.isEmped) {
-                    snake.isBoosting = !snake.isBoosting
-                }
-
-                // Move the bot using the same physics
-                moveSnake(snake, null, snake.isBoosting, isPlayer = false)
-            }
-        }
-    }
-
-    private fun processCollisions() {
-        synchronized(_snakes) {
-            val alive = _snakes.filter { it.isAlive }.toList()
-            for (i in alive.indices) {
-                val snake = alive[i]
-                if (!snake.isAlive || isInvulnerable(snake)) continue
-                for (j in alive.indices) {
-                    if (i == j) continue
-                    val other = alive[j]
-                    if (!other.isAlive || isInvulnerable(other)) continue
-
-                    val segments = if (other.body.size > 2) other.body.subList(2, other.body.size) else other.body
-                    for (seg in segments) {
-                        if (snake.position.distance(seg) < 22f) {
-                            killSnake(snake, other, "collision")
-                            break
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun processOrbEating() {
-        val eatenIds = mutableSetOf<String>()
-        val snakesCopy = getAliveSnakes()
-
-        synchronized(_orbs) {
-            _orbs.forEach { orb ->
-                snakesCopy.forEach { snake ->
-                    if (snake.position.distance(orb.position) < EAT_RADIUS) {
-                        val multiplier = if (snake.activePowerUpType == PowerUpType.DOUBLE_POINTS) 2 else 1
-                        val points = orb.points * multiplier
-                        snake.score += points
-                        snake.length = 4 + (snake.score / 25)
-                        eatenIds.add(orb.id)
-
-                        val coins = (if (orb.isCelestialOrb) 50 else if (orb.isSuperOrb) 5 else 1) * multiplier
-                        val xp = (if (orb.isCelestialOrb) 150 else if (orb.isSuperOrb) 20 else 5) * multiplier
-
-                        if (snake.isPlayer) {
-                            totalCoinsEarned += coins
-                            totalXpEarned += xp
-                            val count = if (orb.isCelestialOrb) 16 else 3
-                            repeat(count) {
-                                val pColor = if (orb.isCelestialOrb) {
-                                    listOf(Color(0xFFFF00FF), Color(0xFF00FFCC), Color(0xFFFFFF33), Color(0xFFE040FB)).random()
-                                } else {
-                                    orb.color
-                                }
-                                val speed = if (orb.isCelestialOrb) 8f else 4f
-                                addParticle(
-                                    orb.position,
-                                    Vector2D(Random.nextFloat() * speed - speed / 2, Random.nextFloat() * speed - speed / 2),
-                                    pColor,
-                                    alpha = 1f,
-                                    fadeSpeed = if (orb.isCelestialOrb) 0.03f else 0.08f,
-                                    size = if (orb.isCelestialOrb) 8f else 5f
-                                )
-                            }
-                            when {
-                                orb.isCelestialOrb -> {
-                                    addFloatingText(orb.position, "CELESTIAL ANOMALY! +${points}", Color(0xFFFF00FF))
-                                    triggerHaptic("heavy")
-                                    cameraShake = 12f
-                                }
-                                orb.isSuperOrb -> {
-                                    addFloatingText(orb.position, "+${points} length", Color(0xFFFFFF33))
-                                    triggerHaptic("medium")
-                                }
-                                else -> triggerHaptic("light")
-                            }
-                        } else {
-                            // Bot eating – just visual for celestial
-                            if (orb.isCelestialOrb) {
-                                repeat(5) {
-                                    addParticle(
-                                        orb.position,
-                                        Vector2D(Random.nextFloat() * 4f - 2f, Random.nextFloat() * 4f - 2f),
-                                        orb.color,
-                                        alpha = 0.8f,
-                                        fadeSpeed = 0.05f,
-                                        size = 6f
-                                    )
-                                }
-                            }
-                        }
-                        return@forEach // orb eaten
-                    }
-                }
-            }
-            _orbs.removeAll { it.id in eatenIds }
-            if (_orbs.size < MAX_ORBS) {
-                spawnOrbs(ORB_SPAWN_COUNT)
-            }
-        }
-    }
-
-    private fun updateParticlesAndTexts() {
-        synchronized(_particles) {
-            val iter = _particles.iterator()
-            while (iter.hasNext()) {
-                val p = iter.next()
-                p.position += p.velocity
-                p.alpha -= p.fadeSpeed
-                if (p.alpha <= 0) iter.remove()
-            }
-        }
-        synchronized(_floatingTexts) {
-            val iter = _floatingTexts.iterator()
-            while (iter.hasNext()) {
-                val t = iter.next()
-                t.position += Vector2D(0f, t.speedY)
-                t.life--
-                t.alpha = (t.life / 40f).coerceIn(0f, 1f)
-                if (t.life <= 0) iter.remove()
-            }
-        }
-    }
-
-    private fun checkGameEndConditions() {
-        val player = playerSnake ?: return
-        if (!player.isAlive) {
-            isGameOver = true
-            if (gameMode != "Casual") determinePlacement()
-            return
-        }
-        if ((gameMode == "Battle Royale" || gameMode == "Ranked") && !isGameOver) {
-            val survivors = getAliveSnakes()
-            if (survivors.size == 1 && survivors.first().isPlayer) {
-                isVictory = true
-                rankingPlacement = 1
-                isGameOver = true
-                totalCoinsEarned += WIN_COINS
-                totalXpEarned += WIN_XP
-                triggerHaptic("heavy")
-                cameraShake = 20f
-            }
-        }
-    }
-
-    private fun updateLeaderboard() {
-        alivePlayersCount = getAliveSnakes().size
-        val ranked = synchronized(_snakes) { _snakes.map { it.name to it.score } }
-            .sortedByDescending { it.second }
-        rankingList.clear()
-        rankingList.addAll(ranked.take(10))
-    }
-
-    private fun determinePlacement() {
-        val liveBots = getAliveSnakes().filter { !it.isPlayer }.size
-        rankingPlacement = liveBots + 1
-        val bonus = when {
-            rankingPlacement == 1 -> 350
-            rankingPlacement <= 3 -> 150
-            else -> 30
-        }
-        totalCoinsEarned += bonus
-        totalXpEarned += (400 - (rankingPlacement * 20)).coerceAtLeast(50)
-    }
-
-    // ---------- Spawning helpers ----------
 
     private fun spawnPowerUps(amount: Int) {
-        repeat(amount) {
+        for (i in 0 until amount) {
             val id = UUID.randomUUID().toString()
             val pos = Vector2D(
                 Random.nextFloat() * (arenaWidth - 160f) + 80f,
@@ -1023,28 +197,27 @@ class GameEngine {
                 PowerUpType.GHOST -> Color(0xFFB0BEC5)
                 PowerUpType.SPEED_BOOST -> Color(0xFFFF5722)
             }
-            synchronized(_powerUps) {
-                _powerUps.add(PowerUp(id, pos, type, color, durationFrames = POWERUP_DURATION))
-            }
+            powerUps.add(PowerUp(id, pos, type, color))
         }
     }
 
     private fun getRandomColorsForBot(): Pair<Color, Color> {
         val skins = listOf(
-            Color(0xFFFF3366) to Color(0xFFFF9900),
-            Color(0xFF9933FF) to Color(0xFFFF00D6),
-            Color(0xFF00FF33) to Color(0xFF33FFCC),
-            Color(0xFFFFFF33) to Color(0xFFFFCC00),
-            Color(0xFFFFFFFF) to Color(0xFF999999)
+            Pair(Color(0xFFFF3366), Color(0xFFFF9900)), // Hot Lava
+            Pair(Color(0xFF9933FF), Color(0xFFFF00D6)), // Twilight Neon
+            Pair(Color(0xFF00FF33), Color(0xFF33FFCC)), // Cyber Mint
+            Pair(Color(0xFFFFFF33), Color(0xFFFFCC00)), // Gold Standard
+            Pair(Color(0xFFFFFFFF), Color(0xFF999999))  // Ghost Veil
         )
         return skins.random()
     }
 
-    private fun getRandomSkinName(): String =
-        listOf("Volcanic Lava", "Twilight Neon", "Cyber Mint", "Gold Standard", "Ghost Veil").random()
+    private fun getRandomSkinName(): String {
+        return listOf("Volcanic Lava", "Twilight Neon", "Cyber Mint", "Gold Standard", "Ghost Veil").random()
+    }
 
     private fun spawnOrbs(amount: Int) {
-        repeat(amount) {
+        for (i in 0 until amount) {
             val id = UUID.randomUUID().toString()
             val pos = Vector2D(
                 Random.nextFloat() * (arenaWidth - 60f) + 30f,
@@ -1054,117 +227,897 @@ class GameEngine {
             val isCelestial = roll < 2
             val isSuper = !isCelestial && roll < 10
             val size = if (isCelestial) 22f else if (isSuper) 13f else 6f
-            val points = when {
-                isCelestial -> CELESTIAL_ORB_POINTS
-                isSuper -> SUPER_ORB_POINTS
-                else -> NORMAL_ORB_POINTS
-            }
+            val points = if (isCelestial) 100 else if (isSuper) 25 else 5
             val colors = listOf(
                 Color(0xFF00FFCC), Color(0xFFFF3366), Color(0xFFFFFF33),
                 Color(0xFF9933FF), Color(0xFF33FFCC), Color(0xFFFF9900)
             )
             val color = if (isCelestial) Color(0xFFFF00FF) else colors.random()
-            synchronized(_orbs) {
-                _orbs.add(Orb(id, pos, size, color, points, isSuper, isCelestial))
-            }
+            orbs.add(Orb(id, pos, size, color, points, isSuper, isCelestial))
         }
     }
 
-    // ---------- Ability system ----------
+    fun syncMultiplayerSnakes(peers: Map<String, PeerSnakeData>) {
+        synchronized(snakes) {
+            peers.forEach { (username, peerData) ->
+                val peerId = "mp_$username"
+                var existingSnake = snakes.firstOrNull { it.id == peerId }
+                
+                val primaryColorVal = try {
+                    Color(android.graphics.Color.parseColor(peerData.primaryColorHex))
+                } catch (e: Exception) {
+                    Color(0xFFFF3366)
+                }
+                val secondaryColorVal = try {
+                    Color(android.graphics.Color.parseColor(peerData.secondaryColorHex))
+                } catch (e: Exception) {
+                    Color(0xFFFF9900)
+                }
+
+                if (existingSnake == null) {
+                    val snake = Snake(
+                        id = peerId,
+                        name = peerData.name,
+                        isPlayer = false,
+                        position = peerData.position,
+                        angle = peerData.angle,
+                        speed = peerData.speed,
+                        length = peerData.length,
+                        score = peerData.score,
+                        primaryColor = primaryColorVal,
+                        secondaryColor = secondaryColorVal,
+                        isBoosting = peerData.isBoosting,
+                        isAlive = peerData.isAlive
+                    )
+                    peerData.body.forEach { segment ->
+                        snake.body.add(segment)
+                    }
+                    snakes.add(snake)
+                } else {
+                    existingSnake.position = peerData.position
+                    existingSnake.angle = peerData.angle
+                    existingSnake.speed = peerData.speed
+                    existingSnake.length = peerData.length
+                    existingSnake.score = peerData.score
+                    existingSnake.isBoosting = peerData.isBoosting
+                    existingSnake.isAlive = peerData.isAlive
+                    
+                    existingSnake.body.clear()
+                    peerData.body.forEach { segment ->
+                        existingSnake.body.add(segment)
+                    }
+                }
+            }
+            
+            val mpIdsToRemove = mutableListOf<String>()
+            snakes.forEach { snake ->
+                if (snake.id.startsWith("mp_") && !peers.containsKey(snake.name)) {
+                    mpIdsToRemove.add(snake.id)
+                }
+            }
+            snakes.removeAll { mpIdsToRemove.contains(it.id) }
+        }
+    }
+
+    fun onTick(
+        joystickAngle: Float?,
+        isBoosting: Boolean,
+        abilityTriggered: Boolean
+    ) {
+        if (isGameOver) return
+
+        // 1. Decay camera shake
+        cameraShake = (cameraShake - 0.45f).coerceAtLeast(0f)
+
+        // 2. Weather & Arena Map Event Simulation Tick
+        weatherTimer--
+        if (weatherTimer <= 0) {
+            weatherTimer = Random.nextInt(320, 550) // Switch weather/events state every 8-12 seconds
+            
+            val potentialEvents = when (arenaTheme) {
+                ArenaTheme.CYBER_CITY -> listOf("NORMAL", "ENERGY_STORM")
+                ArenaTheme.LAVA_WORLD -> listOf("NORMAL", "ERUPTION")
+                ArenaTheme.FROZEN_ARENA -> listOf("NORMAL", "ICE_BLIZZARD")
+                ArenaTheme.JUNGLE_TEMPLE -> listOf("NORMAL", "ANCIENT_RITUAL")
+                ArenaTheme.SPACE_STATION -> listOf("NORMAL", "GRAVITY_SHIFT")
+                ArenaTheme.NEON_GRID -> listOf("NORMAL", "OVERCHARGE_PULSE")
+            }
+            activeWeather = if (activeWeather == "NORMAL") potentialEvents.random() else "NORMAL"
+
+            if (activeWeather != "NORMAL") {
+                cameraShake = 16f
+                triggerHaptic("heavy")
+                eventDuration = 180 // lasts 3 seconds (180 frames)
+                activeEventName = when (activeWeather) {
+                    "ENERGY_STORM" -> "ELECTRON LIGHTNING HURRICANE!"
+                    "ERUPTION" -> "LAVA VOLCANO ERUPTION!"
+                    "ICE_BLIZZARD" -> "SUB-ZERO COLD ICE BLIZZARD!"
+                    "ANCIENT_RITUAL" -> "ANCIENT TOTEM RUNES ACTIVE!"
+                    "GRAVITY_SHIFT" -> "AIRLOCK GRAVITY ANOMALY WELL!"
+                    "OVERCHARGE_PULSE" -> "OVERCHARGED GRID ENERGY OVERLOAD!"
+                    else -> "ARENA CRITICAL OUTBREAK EVENT!"
+                }
+                playerSnake?.let { p ->
+                    floatingTexts.add(FloatingText(p.position, "MAP WARNING: $activeEventName", Color(0xFFFF3366)))
+                }
+            } else {
+                activeEventName = "CALM"
+                playerSnake?.let { p ->
+                    floatingTexts.add(FloatingText(p.position, "ARENA STABILIZED", Color(0xFF00FFCC)))
+                }
+            }
+        }
+
+        if (eventDuration > 0) {
+            eventDuration--
+            // Global weather behaviors
+            when (activeWeather) {
+                "ENERGY_STORM" -> {
+                    cameraShake = maxOf(cameraShake, 1.3f)
+                    if (Random.nextInt(50) == 0) {
+                        snakes.filter { it.isAlive }.randomOrNull()?.let { victim ->
+                            victim.isEmped = true
+                            victim.empTimer = 120
+                            floatingTexts.add(FloatingText(victim.position, "STRUCK BY LIGHTNING STUN!", Color(0xFFFFFF33)))
+                            if (victim.isPlayer) {
+                                triggerHaptic("medium")
+                                cameraShake = 10f
+                            }
+                        }
+                    }
+                }
+                "ERUPTION" -> {
+                    cameraShake = maxOf(cameraShake, 1.8f)
+                    if (Random.nextInt(25) == 0) {
+                        val lavaBall = Vector2D(Random.nextFloat() * arenaWidth, Random.nextFloat() * arenaHeight)
+                        orbs.add(Orb(UUID.randomUUID().toString(), lavaBall, 14f, Color(0xFFFF5722), 40, true))
+                        for (i in 0..4) {
+                            particles.add(Particle(lavaBall, Vector2D(Random.nextFloat() * 6f - 3f, Random.nextFloat() * 6f - 3f), Color(0xFFFF4500), fadeSpeed = 0.04f, size = 12f))
+                        }
+                    }
+                }
+                "GRAVITY_SHIFT" -> {
+                    // Pull snakes slowly towards center
+                    val center = Vector2D(arenaWidth / 2f, arenaHeight / 2f)
+                    for (snake in snakes) {
+                        if (!snake.isAlive) continue
+                        val pullDir = (center - snake.position).normalized()
+                        snake.position = snake.position + pullDir * 1.6f
+                    }
+                }
+                "OVERCHARGE_PULSE" -> {
+                    if (Random.nextInt(12) == 0) {
+                        val sparkPos = Vector2D(Random.nextFloat() * arenaWidth, Random.nextFloat() * arenaHeight)
+                        particles.add(Particle(sparkPos, Vector2D(0f, 0f), Color(0xFF00FFCC), fadeSpeed = 0.03f, size = 14f))
+                    }
+                }
+            }
+        }
+
+        // 3. Shrink Safe Zone overlay (Battle Royale Mode)
+        if (gameMode == "Battle Royale" && isSafeZoneShrinking) {
+            safeZoneRadius = (safeZoneRadius - 0.25f).coerceAtLeast(300f)
+        }
+
+        val player = playerSnake ?: return
+
+        // 4. Update Power-Up Active Timers, Magnet Pull states, Debuffs & Cool downs for all snakes
+        for (snake in snakes) {
+            if (!snake.isAlive) continue
+
+            // 4.1 Decrement Ability cooldowns
+            if (snake.abilityCooldownRemaining > 0) {
+                snake.abilityCooldownRemaining--
+            }
+
+            // 4.2 Decrement Active Ability durations
+            if (snake.abilityActiveDuration > 0) {
+                snake.abilityActiveDuration--
+                if (snake.abilityActiveDuration <= 0) {
+                    snake.specialAbilityActive = false
+                    if (snake.activeAbilityType == "GHOST_PHASE") {
+                        snake.activePowerUpType = null
+                    }
+                }
+            }
+
+            // 4.3 Decrement status effects
+            if (snake.isFrozen) {
+                snake.freezeTimer--
+                if (snake.freezeTimer <= 0) {
+                    snake.isFrozen = false
+                }
+            }
+            if (snake.isEmped) {
+                snake.empTimer--
+                if (snake.empTimer <= 0) {
+                    snake.isEmped = false
+                }
+            }
+
+            // Decrement active power-up timer
+            if (snake.activePowerUpType != null && snake.activeAbilityType != "GHOST_PHASE") {
+                snake.powerUpTimer--
+                if (snake.powerUpTimer <= 0) {
+                    snake.activePowerUpType = null
+                }
+            }
+
+            // Magnetic Pull of surrounding orbs towards head
+            if (snake.activePowerUpType == PowerUpType.MAGNET) {
+                for (orb in orbs) {
+                    val dist = snake.position.distance(orb.position)
+                    if (dist < 185f) {
+                        val pullForce = ((185f - dist) / 185f) * 6.5f + 1.5f
+                        val pullDir = (snake.position - orb.position).normalized()
+                        orb.position = orb.position + pullDir * pullForce
+                    }
+                }
+            }
+        }
+
+        // 5. Power-Up Pick up Collision Detection
+        val gatheredPowerUpIds = mutableListOf<String>()
+        for (powerUp in powerUps) {
+            for (snake in snakes) {
+                if (!snake.isAlive) continue
+                if (snake.position.distance(powerUp.position) < 38f) {
+                    gatheredPowerUpIds.add(powerUp.id)
+                    
+                    if (powerUp.type == PowerUpType.GROWTH) {
+                        snake.score += 75
+                        snake.length = 4 + (snake.score / 25)
+                        if (snake.isPlayer) {
+                            totalCoinsEarned += 25
+                            totalXpEarned += 100
+                            floatingTexts.add(FloatingText(snake.position, "GROWTH POTION +3 SEGMENTS!", Color(0xFF66BB6A)))
+                            triggerHaptic("heavy")
+                            cameraShake = 6f
+                        }
+                    } else {
+                        snake.activePowerUpType = powerUp.type
+                        snake.powerUpTimer = powerUp.durationFrames
+                        if (snake.isPlayer) {
+                            val activeText = when (powerUp.type) {
+                                PowerUpType.MAGNET -> "MAGNET FORCEFIELD ACTIVE!"
+                                PowerUpType.DOUBLE_POINTS -> "DOUBLE POINTS MULTIPLIER!"
+                                PowerUpType.SHIELD -> "FORCEFIELD SHIELD ACTIVE!"
+                                PowerUpType.GHOST -> "GHOST MODE: PHASE THROUGH WALLS!"
+                                PowerUpType.SPEED_BOOST -> "SPEED BOOST VELOCITY ACTIVATED!"
+                                else -> "UPGRADE ACTIVE!"
+                            }
+                            floatingTexts.add(FloatingText(snake.position, activeText, powerUp.color))
+                            triggerHaptic("medium")
+                            cameraShake = 4f
+                        }
+                    }
+                    break
+                }
+            }
+        }
+        if (gatheredPowerUpIds.isNotEmpty()) {
+            powerUps.removeAll { gatheredPowerUpIds.contains(it.id) }
+            spawnPowerUps(gatheredPowerUpIds.size)
+        }
+
+        // 6. Arena Hazards Collision Mechanics (with Special Ability mitigations)
+        for (hazard in hazards) {
+            hazard.state = (hazard.state + 1) % 360
+            for (snake in snakes) {
+                if (!snake.isAlive) continue
+                val dist = snake.position.distance(hazard.position)
+                when (hazard.type) {
+                    "lava_pit" -> {
+                        if (dist < hazard.size + 15f) {
+                            if (snake.activePowerUpType != PowerUpType.SHIELD && snake.activePowerUpType != PowerUpType.GHOST && !snake.specialAbilityActive) {
+                                if (Random.nextInt(15) == 0) {
+                                    snake.length = maxOf(3, snake.length - 1)
+                                    if (snake.isPlayer) {
+                                        floatingTexts.add(FloatingText(snake.position, "THERMAL LAVA BURN! -1 RING", Color(0xFFFF4500)))
+                                        triggerHaptic("medium")
+                                        cameraShake = 7f
+                                    }
+                                    particles.add(Particle(snake.position, Vector2D(Random.nextFloat() * 2f - 1f, -2f), Color(0xFFFF9900), alpha = 0.9f))
+                                }
+                            }
+                        }
+                    }
+                    "electro_gate" -> {
+                        val isActive = (hazard.state % 120) < 84
+                        if (isActive && dist < hazard.size + 10f) {
+                            if (snake.activePowerUpType != PowerUpType.SHIELD && snake.activePowerUpType != PowerUpType.GHOST && !snake.specialAbilityActive) {
+                                snake.isAlive = false
+                                if (snake.isPlayer) {
+                                    triggerHaptic("heavy")
+                                    cameraShake = 22f
+                                }
+                                publishKill(null, snake, "electro_gate")
+                                eliminateSnake(snake)
+                                break
+                            }
+                        }
+                    }
+                    "ice_spike" -> {
+                        if (dist < hazard.size + 12f) {
+                            if (snake.activePowerUpType != PowerUpType.SHIELD && !snake.specialAbilityActive) {
+                                snake.isAlive = false
+                                if (snake.isPlayer) {
+                                    triggerHaptic("heavy")
+                                    cameraShake = 24f
+                                }
+                                publishKill(null, snake, "ice_spike")
+                                eliminateSnake(snake)
+                                break
+                            } else {
+                                val pushDir = (snake.position - hazard.position).normalized()
+                                snake.position = hazard.position + pushDir * (hazard.size + 20f)
+                                snake.angle = atan2(pushDir.y.toDouble(), pushDir.x.toDouble()).toFloat()
+                            }
+                        }
+                    }
+                    "totem" -> {
+                        if (dist < hazard.size + 40f) {
+                            if (Random.nextInt(20) == 0) {
+                                snake.score += 15
+                                snake.length = 4 + (snake.score / 25)
+                                if (snake.isPlayer) {
+                                    floatingTexts.add(FloatingText(snake.position, "ANCIENT COGNITION +15", Color(0xFF81C784)))
+                                    triggerHaptic("light")
+                                }
+                            }
+                        }
+                    }
+                    "quantum_vortex" -> {
+                        if (dist < hazard.size + 150f) {
+                            val suctionPower = ((hazard.size + 150f) - dist) / (hazard.size + 150f) * 3f
+                            val pullDir = (hazard.position - snake.position).normalized()
+                            snake.position = snake.position + pullDir * suctionPower
+                            if (dist < hazard.size * 0.45f) {
+                                if (snake.activePowerUpType != PowerUpType.SHIELD && snake.activePowerUpType != PowerUpType.GHOST && !snake.specialAbilityActive) {
+                                    snake.isAlive = false
+                                    if (snake.isPlayer) {
+                                        triggerHaptic("heavy")
+                                        cameraShake = 25f
+                                    }
+                                    publishKill(null, snake, "quantum_vortex")
+                                    eliminateSnake(snake)
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    "neon_gate" -> {
+                        val isBlocked = (hazard.state % 180) > 90
+                        if (isBlocked && dist < hazard.size + 12f) {
+                            if (snake.activePowerUpType != PowerUpType.SHIELD && snake.activePowerUpType != PowerUpType.GHOST && !snake.specialAbilityActive) {
+                                if (Random.nextInt(8) == 0) {
+                                    snake.length = maxOf(3, snake.length - 1)
+                                    if (snake.isPlayer) {
+                                        floatingTexts.add(FloatingText(snake.position, "LASER GATE GLITCH! -1 RING", Color(0xFF00E5FF)))
+                                        triggerHaptic("heavy")
+                                        cameraShake = 8f
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 7. Core Active Ability trigger hooks for player
+        if (abilityTriggered && player.abilityCooldownRemaining <= 0 && !player.specialAbilityActive && player.isAlive) {
+            triggerAbility(player)
+        }
+
+        // 8. Move Player Snake with physics-based smooth turning and speed interpolation
+        if (player.isAlive) {
+            if (joystickAngle != null) {
+                val targetAngle = joystickAngle
+                var diff = targetAngle - player.angle
+                // Wrap angular limits correctly
+                while (diff < -Math.PI) diff += (2 * Math.PI).toFloat()
+                while (diff > Math.PI) diff -= (2 * Math.PI).toFloat()
+                
+                // Rotational agility: slower in ice blizzards, faster on speed bursts
+                var turnSpeed = 0.15f
+                if (activeWeather == "ICE_BLIZZARD") {
+                    turnSpeed = 0.06f // Slippery!
+                } else if (player.abilityActiveDuration > 0 && player.activeAbilityType == "SPEED_BURST") {
+                    turnSpeed = 0.22f // Extra sharp steering when boosting!
+                }
+                player.angle += (diff * turnSpeed)
+            }
+            player.isBoosting = isBoosting && player.length > 5 && !player.isEmped && !player.isFrozen
+
+            // Speed calculation - augmented by boosts and debuffs
+            var targetSpeed = if (player.isBoosting) 7.5f else 4.0f
+            if (player.activePowerUpType == PowerUpType.SPEED_BOOST) {
+                targetSpeed *= 1.6f
+            }
+            if (player.isFrozen) {
+                targetSpeed = 1.5f // high freeze slow
+            }
+            if (player.isEmped) {
+                targetSpeed = 2.8f // speed penalty
+            }
+            if (player.abilityActiveDuration > 0 && player.activeAbilityType == "SPEED_BURST") {
+                targetSpeed = 13.0f // extreme drive speed
+            }
+
+            // Juicy interpolation for acceleration & deceleration
+            player.speed = player.speed + (targetSpeed - player.speed) * 0.14f
+
+            // Tiny shake on extreme speeds
+            if (player.speed > 8f) {
+                cameraShake = maxOf(cameraShake, 1.1f)
+            }
+
+            val dirX = cos(player.angle.toDouble()).toFloat()
+            val dirY = sin(player.angle.toDouble()).toFloat()
+            player.position = player.position + Vector2D(dirX * player.speed, dirY * player.speed)
+
+            // Length management on boosting
+            if (player.isBoosting && Random.nextInt(12) == 0 && player.length > 5) {
+                player.length--
+                val lastSeg = player.body.lastOrNull() ?: player.position
+                orbs.add(Orb(UUID.randomUUID().toString(), lastSeg, 5f, player.primaryColor, 4, false))
+                if (player.body.size > player.length) {
+                    player.body.removeAt(player.body.lastIndex)
+                }
+            }
+
+            // Save history with spacing
+            updateBodySegments(player)
+
+            // Spawn fine-grain particle sparks on boost trails with Cosmic Dust glitters and gaseous exhausts
+            if (player.isBoosting && Random.nextInt(2) == 0) {
+                val randVal = Random.nextInt(3)
+                val isNebulaPuff = randVal == 0
+                val isStarGlitter = randVal == 1
+                particles.add(
+                    Particle(
+                        position = player.position,
+                        velocity = Vector2D(-dirX * 2.5f + (Random.nextFloat() * 1.5f - 0.75f), -dirY * 2.5f + (Random.nextFloat() * 1.5f - 0.75f)),
+                        color = if (isStarGlitter) Color.White else player.primaryColor,
+                        alpha = 1.0f,
+                        fadeSpeed = if (isNebulaPuff) 0.04f else 0.08f,
+                        size = if (isNebulaPuff) 8f else (if (isStarGlitter) 5f else 6f),
+                        isStar = isStarGlitter,
+                        isNebula = isNebulaPuff
+                    )
+                )
+            }
+
+            // Bounds boundary check
+            if (player.activePowerUpType == PowerUpType.GHOST) {
+                if (player.position.x < 0) {
+                    player.position = Vector2D(arenaWidth, player.position.y)
+                    player.body.clear()
+                } else if (player.position.x > arenaWidth) {
+                    player.position = Vector2D(0f, player.position.y)
+                    player.body.clear()
+                }
+                if (player.position.y < 0) {
+                    player.position = Vector2D(player.position.x, arenaHeight)
+                    player.body.clear()
+                } else if (player.position.y > arenaHeight) {
+                    player.position = Vector2D(player.position.x, 0f)
+                    player.body.clear()
+                }
+            } else {
+                if (player.position.x < 0 || player.position.x > arenaWidth ||
+                    player.position.y < 0 || player.position.y > arenaHeight
+                ) {
+                    player.isAlive = false
+                    triggerHaptic("heavy")
+                    cameraShake = 25f
+                    publishKill(null, player, "border")
+                    eliminateSnake(player)
+                }
+            }
+
+            // Safe zone damages
+            if (gameMode == "Battle Royale") {
+                val distFromCenter = player.position.distance(safeZoneCenter)
+                if (distFromCenter > safeZoneRadius) {
+                    if (Random.nextInt(15) == 0) {
+                        player.length--
+                        floatingTexts.add(FloatingText(player.position, "-1 RING BURNING", Color(0xFFFF3333)))
+                        cameraShake = 5f
+                        if (player.length < 3) {
+                            player.isAlive = false
+                            triggerHaptic("heavy")
+                            cameraShake = 22f
+                            publishKill(null, player, "safe_zone")
+                            eliminateSnake(player)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 9. Move Bot snakes with AI heuristics, turning rates, and active triggers
+        for (snake in snakes) {
+            if (snake.isPlayer || !snake.isAlive || snake.id.startsWith("mp_")) continue
+
+            // 9.1 AI trigger choice: if close to opponents, use tactical abilities!
+            if (snake.abilityCooldownRemaining <= 0) {
+                val nearbyPlayer = snakes.firstOrNull { it.id != snake.id && it.isAlive && it.position.distance(snake.position) < 220f }
+                if (nearbyPlayer != null) {
+                    triggerAbility(snake)
+                }
+            }
+
+            // 9.2 Target decision logic
+            snake.botTargetTimer--
+            if (snake.botTarget == null || snake.botTargetTimer <= 0) {
+                snake.botTargetTimer = Random.nextInt(60, 150)
+                val choice = Random.nextLong(100)
+                if (choice < 60 && orbs.isNotEmpty()) {
+                    var nearestOrb = orbs[0]
+                    var minDistance = Float.MAX_VALUE
+                    for (i in 0 until minOf(20, orbs.size)) {
+                        val distance = snake.position.distance(orbs[i].position)
+                        if (distance < minDistance) {
+                            minDistance = distance
+                            nearestOrb = orbs[i]
+                        }
+                    }
+                    snake.botTarget = nearestOrb.position
+                } else if (choice < 90 && snakes.size > 1) {
+                    val targetSnake = snakes.first { it.id != snake.id && it.isAlive }
+                    snake.botTarget = targetSnake.position
+                } else {
+                    snake.botTarget = Vector2D(Random.nextFloat() * arenaWidth, Random.nextFloat() * arenaHeight)
+                }
+            }
+
+            // 9.3 Turn toward AI target smoothly
+            val target = snake.botTarget
+            if (target != null) {
+                val dx = target.x - snake.position.x
+                val dy = target.y - snake.position.y
+                val targetAngle = atan2(dy.toDouble(), dx.toDouble()).toFloat()
+                
+                val diff = targetAngle - snake.angle
+                val s1 = sin(diff.toDouble()).toFloat()
+                
+                var turnSpeed = 0.08f
+                if (activeWeather == "ICE_BLIZZARD") {
+                    turnSpeed = 0.03f // slip
+                }
+                if (snake.position.x < 150f || snake.position.x > arenaWidth - 150f ||
+                    snake.position.y < 150f || snake.position.y > arenaHeight - 150f
+                ) {
+                    turnSpeed = 0.25f // steep steer
+                }
+                snake.angle += if (s1 > 0) turnSpeed else -turnSpeed
+            }
+
+            // Randomly enable boosting
+            if (Random.nextInt(50) == 0 && snake.length > 8 && !snake.isFrozen && !snake.isEmped) {
+                snake.isBoosting = !snake.isBoosting
+            }
+
+            // Speed computations
+            var botSpeed = if (snake.isBoosting) 6.5f else 3.5f
+            if (snake.activePowerUpType == PowerUpType.SPEED_BOOST) {
+                botSpeed *= 1.6f
+            }
+            if (snake.isFrozen) {
+                botSpeed = 1.4f
+            }
+            if (snake.isEmped) {
+                botSpeed = 2.5f
+            }
+            if (snake.abilityActiveDuration > 0 && snake.activeAbilityType == "SPEED_BURST") {
+                botSpeed = 11.5f
+            }
+
+            // Eased bot speeds
+            snake.speed = snake.speed + (botSpeed - snake.speed) * 0.14f
+
+            val bDirX = cos(snake.angle.toDouble()).toFloat()
+            val bDirY = sin(snake.angle.toDouble()).toFloat()
+            snake.position = snake.position + Vector2D(bDirX * snake.speed, bDirY * snake.speed)
+
+            updateBodySegments(snake)
+
+            if (snake.activePowerUpType == PowerUpType.GHOST) {
+                if (snake.position.x < 0) {
+                    snake.position = Vector2D(arenaWidth, snake.position.y)
+                    snake.body.clear()
+                } else if (snake.position.x > arenaWidth) {
+                    snake.position = Vector2D(0f, snake.position.y)
+                    snake.body.clear()
+                }
+                if (snake.position.y < 0) {
+                    snake.position = Vector2D(snake.position.x, arenaHeight)
+                    snake.body.clear()
+                } else if (snake.position.y > arenaHeight) {
+                    snake.position = Vector2D(snake.position.x, 0f)
+                    snake.body.clear()
+                }
+            } else {
+                if (snake.position.x < 30f || snake.position.x > arenaWidth - 30f ||
+                    snake.position.y < 30f || snake.position.y > arenaHeight - 30f
+                ) {
+                    snake.botTarget = Vector2D(arenaWidth / 2f, arenaHeight / 2f)
+                    snake.botTargetTimer = 60
+                }
+            }
+        }
+
+        // 10. Head-to-Body Collision Detection
+        for (snake in snakes) {
+            if (!snake.isAlive) continue
+
+            for (other in snakes) {
+                if (!other.isAlive) continue
+                // Don't collide with self. Ignore if shielded, phasing ghost, or utilizing active invents.
+                if (snake.id == other.id || snake.specialAbilityActive || snake.activePowerUpType == PowerUpType.SHIELD || snake.activePowerUpType == PowerUpType.GHOST) continue
+
+                val segmentsToCheck = if (other.body.size > 2) other.body.subList(2, other.body.size) else other.body
+                for (seg in segmentsToCheck) {
+                    val collisionThreshold = (11f * snake.thicknessFactor) + (11f * other.thicknessFactor)
+                    if (snake.position.distance(seg) < collisionThreshold) {
+                        snake.isAlive = false
+                        
+                        if (snake.isPlayer) {
+                            triggerHaptic("heavy")
+                            cameraShake = 25f
+                        } else {
+                            if (other.isPlayer) {
+                                totalKills++
+                                totalCoinsEarned += 100
+                                totalXpEarned += 400
+                                floatingTexts.add(FloatingText(snake.position, "KILL +400 XP", Color(0xFFFF5252)))
+                                triggerHaptic("heavy")
+                                cameraShake = 20f
+                            }
+                        }
+                        publishKill(other, snake, "collision")
+                        eliminateSnake(snake)
+                        break
+                    }
+                }
+            }
+        }
+
+        // 11. Food Eating Check
+        val eatenOrbIds = mutableListOf<String>()
+        for (orb in orbs) {
+            if (player.isAlive && player.position.distance(orb.position) < 32f) {
+                val multiplier = if (player.activePowerUpType == PowerUpType.DOUBLE_POINTS) 2 else 1
+                player.score += orb.points * multiplier
+                player.length = 4 + (player.score / 25)
+                eatenOrbIds.add(orb.id)
+                
+                val coinsToAdd = (if (orb.isCelestialOrb) 50 else if (orb.isSuperOrb) 5 else 1) * multiplier
+                val xpToAdd = (if (orb.isCelestialOrb) 150 else if (orb.isSuperOrb) 20 else 5) * multiplier
+                totalCoinsEarned += coinsToAdd
+                totalXpEarned += xpToAdd
+                
+                val particleCount = if (orb.isCelestialOrb) 20 else 5
+                for (i in 0 until particleCount) {
+                    val pColor = if (orb.isCelestialOrb) {
+                        listOf(Color(0xFFFF00FF), Color(0xFF00FFCC), Color(0xFFFFFF33), Color(0xFFE040FB)).random()
+                    } else {
+                        orb.color
+                    }
+                    val isCelestial = orb.isCelestialOrb
+                    val isNebulaPuff = isCelestial && (i % 3 == 0)
+                    val isStarGlitter = (isCelestial && !isNebulaPuff) || (!isCelestial && Random.nextInt(4) == 0)
+                    particles.add(
+                        Particle(
+                            position = orb.position,
+                            velocity = Vector2D(
+                                Random.nextFloat() * (if (isCelestial) 10f else 5f) - (if (isCelestial) 5f else 2.5f),
+                                Random.nextFloat() * (if (isCelestial) 10f else 5f) - (if (isCelestial) 5f else 2.5f)
+                            ),
+                            color = pColor,
+                            alpha = 1.0f,
+                            fadeSpeed = if (isNebulaPuff) 0.02f else (if (isCelestial) 0.04f else 0.07f),
+                            size = if (isNebulaPuff) 14f else (if (isCelestial) 8f else 5f),
+                            isStar = isStarGlitter,
+                            isNebula = isNebulaPuff
+                        )
+                    )
+                }
+
+                if (orb.isCelestialOrb) {
+                    floatingTexts.add(FloatingText(orb.position, "CELESTIAL ANOMALY! +${orb.points * multiplier}", Color(0xFFFF00FF)))
+                    triggerHaptic("heavy")
+                    cameraShake = 12f
+                } else if (orb.isSuperOrb) {
+                    floatingTexts.add(FloatingText(orb.position, "+${orb.points * multiplier} length", Color(0xFFFFFF33)))
+                    triggerHaptic("medium")
+                } else {
+                    triggerHaptic("light")
+                }
+            }
+
+            // Check if bots eat
+            for (snake in snakes) {
+                if (snake.isPlayer || !snake.isAlive) continue
+                if (snake.position.distance(orb.position) < 32f) {
+                    val multiplier = if (snake.activePowerUpType == PowerUpType.DOUBLE_POINTS) 2 else 1
+                    snake.score += orb.points * multiplier
+                    snake.length = 4 + (snake.score / 25)
+                    eatenOrbIds.add(orb.id)
+                    
+                    if (orb.isCelestialOrb) {
+                        for (i in 0..5) {
+                            val isNebulaPuff = i == 0
+                            val isStarGlitter = i == 1
+                            particles.add(
+                                Particle(
+                                    position = orb.position,
+                                    velocity = Vector2D(Random.nextFloat() * 6f - 3f, Random.nextFloat() * 6f - 3f),
+                                    color = orb.color,
+                                    alpha = 0.8f,
+                                    fadeSpeed = if (isNebulaPuff) 0.03f else 0.06f,
+                                    size = if (isNebulaPuff) 12f else 6f,
+                                    isStar = isStarGlitter,
+                                    isNebula = isNebulaPuff
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        orbs.removeAll { eatenOrbIds.contains(it.id) }
+
+        if (orbs.size < 350) {
+            spawnOrbs(80)
+        }
+
+        // 12. Tick particles
+        val iterator = particles.iterator()
+        while (iterator.hasNext()) {
+            val p = iterator.next()
+            p.position += p.velocity
+            p.alpha -= p.fadeSpeed
+            if (p.alpha <= 0) {
+                iterator.remove()
+            }
+        }
+
+        // 13. Tick texts
+        val textIterator = floatingTexts.iterator()
+        while (textIterator.hasNext()) {
+            val txt = textIterator.next()
+            txt.position = txt.position + Vector2D(0f, txt.speedY)
+            txt.life--
+            txt.alpha = (txt.life / 40f).coerceIn(0f, 1f)
+            if (txt.life <= 0) {
+                textIterator.remove()
+            }
+        }
+
+        // Clean lists
+        snakes.removeAll { !it.isAlive && !it.isPlayer }
+
+        // Players death respawn/game-over conditions
+        if (!player.isAlive) {
+            isGameOver = true
+            if (gameMode != "Casual") {
+                determinePlacement()
+            }
+        }
+
+        if ((gameMode == "Battle Royale" || gameMode == "Ranked") && !isGameOver) {
+            val survivors = snakes.filter { it.isAlive }
+            if (survivors.size == 1 && survivors.first().isPlayer) {
+                isVictory = true
+                rankingPlacement = 1
+                isGameOver = true
+                totalCoinsEarned += 500
+                totalXpEarned += 1000
+                triggerHaptic("heavy")
+                cameraShake = 20f
+            }
+        }
+
+        updateLeaderboard()
+    }
 
     fun triggerAbility(snake: Snake) {
         when (snake.activeAbilityType) {
             "SHIELD" -> {
                 snake.specialAbilityActive = true
-                snake.shieldDuration = ABILITY_SHIELD_DURATION
-                snake.abilityCooldownRemaining = COOLDOWN_SHIELD
-                snake.abilityActiveDuration = ABILITY_SHIELD_DURATION
+                snake.shieldDuration = 180 // lasts 3 seconds (180 frames)
+                snake.abilityCooldownRemaining = 540 // 9 second cooldown
+                snake.abilityActiveDuration = 180
                 if (snake.isPlayer) {
-                    addFloatingText(snake.position, "FORCEFIELD SHIELD ACTIVE!", Color(0xFF00E5FF))
+                    floatingTexts.add(FloatingText(snake.position, "FORCEFIELD SHIELD ACTIVE!", Color(0xFF00E5FF)))
                     triggerHaptic("medium")
                     cameraShake = 6f
                 }
                 spawnRingParticles(snake.position, Color(0xFF00E5FF), 25, 8f)
             }
             "FREEZE_PULSE" -> {
-                snake.abilityCooldownRemaining = COOLDOWN_FREEZE
+                snake.abilityCooldownRemaining = 600 // 10 second cooldown
                 if (snake.isPlayer) {
-                    addFloatingText(snake.position, "FREEZE PULSE WAVE!", Color(0xFF80D8FF))
+                    floatingTexts.add(FloatingText(snake.position, "FREEZE PULSE WAVE!", Color(0xFF80D8FF)))
                     triggerHaptic("heavy")
                     cameraShake = 16f
                 }
                 spawnRingParticles(snake.position, Color(0xFF33B5E5), 40, 11f)
-                synchronized(_snakes) {
-                    _snakes.filter { it.id != snake.id && it.isAlive && it.position.distance(snake.position) < 300f }
-                        .forEach { other ->
-                            if (!isInvulnerable(other)) {
-                                other.isFrozen = true
-                                other.freezeTimer = ABILITY_FREEZE_DURATION
-                                if (other.isPlayer) {
-                                    addFloatingText(other.position, "FROZEN SLOW DOWN!", Color(0xFF80D8FF))
-                                    triggerHaptic("heavy")
-                                }
+                
+                for (other in snakes) {
+                    if (other.id == snake.id || !other.isAlive) continue
+                    if (other.position.distance(snake.position) < 300f) {
+                        if (other.activePowerUpType != PowerUpType.SHIELD && !other.specialAbilityActive) {
+                            other.isFrozen = true
+                            other.freezeTimer = 180 // freeze 3 seconds
+                            if (other.isPlayer) {
+                                floatingTexts.add(FloatingText(other.position, "FROZEN SLOW DOWN!", Color(0xFF80D8FF)))
+                                triggerHaptic("heavy")
                             }
                         }
+                    }
                 }
             }
             "EMP_BLAST" -> {
-                snake.abilityCooldownRemaining = COOLDOWN_EMP
+                snake.abilityCooldownRemaining = 660 // 11 second cooldown
                 if (snake.isPlayer) {
-                    addFloatingText(snake.position, "EMP RUNE BLAST!", Color(0xFFFFCC00))
+                    floatingTexts.add(FloatingText(snake.position, "EMP RUNE BLAST!", Color(0xFFFFCC00)))
                     triggerHaptic("heavy")
                     cameraShake = 22f
                 }
                 spawnRingParticles(snake.position, Color(0xFFFFEE55), 40, 10f)
-                synchronized(_snakes) {
-                    _snakes.filter { it.id != snake.id && it.isAlive && it.position.distance(snake.position) < 320f }
-                        .forEach { other ->
-                            if (!isInvulnerable(other)) {
-                                other.isEmped = true
-                                other.empTimer = ABILITY_EMP_DURATION
-                                other.isBoosting = false
-                                if (other.isPlayer) {
-                                    addFloatingText(other.position, "EMP: BOOST BLOCKED!", Color(0xFFFFA000))
-                                    triggerHaptic("heavy")
-                                }
+                
+                for (other in snakes) {
+                    if (other.id == snake.id || !other.isAlive) continue
+                    if (other.position.distance(snake.position) < 320f) {
+                        if (other.activePowerUpType != PowerUpType.SHIELD && !other.specialAbilityActive) {
+                            other.isEmped = true
+                            other.empTimer = 180
+                            other.isBoosting = false
+                            if (other.isPlayer) {
+                                floatingTexts.add(FloatingText(other.position, "EMP: BOOST BLOCKED!", Color(0xFFFFA000)))
+                                triggerHaptic("heavy")
                             }
                         }
-                }
-                // Mutate nearby orbs to celestial
-                synchronized(_orbs) {
-                    var mutated = 0
-                    val newOrbs = mutableListOf<Orb>()
-                    val iter = _orbs.iterator()
-                    while (iter.hasNext()) {
-                        val orb = iter.next()
-                        if (orb.position.distance(snake.position) < 320f && !orb.isCelestialOrb && mutated < 4) {
-                            iter.remove()
-                            newOrbs.add(Orb(UUID.randomUUID().toString(), orb.position, 22f, Color(0xFFFF00FF), CELESTIAL_ORB_POINTS, isCelestialOrb = true))
-                            mutated++
-                        }
                     }
-                    _orbs.addAll(newOrbs)
                 }
+                
+                // Mutate nearby food into celestial food!
+                var mutatedCount = 0
+                val iterator = orbs.iterator()
+                val newlyAdded = mutableListOf<Orb>()
+                while (iterator.hasNext()) {
+                    val orb = iterator.next()
+                    if (orb.position.distance(snake.position) < 320f && !orb.isCelestialOrb && mutatedCount < 4) {
+                        iterator.remove()
+                        newlyAdded.add(Orb(UUID.randomUUID().toString(), orb.position, 22f, Color(0xFFFF00FF), 120, isSuperOrb = false, isCelestialOrb = true))
+                        mutatedCount++
+                    }
+                }
+                orbs.addAll(newlyAdded)
             }
             "SPEED_BURST" -> {
-                snake.abilityActiveDuration = ABILITY_SPEED_BURST_DURATION
-                snake.abilityCooldownRemaining = COOLDOWN_SPEED
+                snake.abilityActiveDuration = 100 // lasts 1.6 seconds
+                snake.abilityCooldownRemaining = 420 // 7 seconds cooldown
                 snake.specialAbilityActive = true
                 if (snake.isPlayer) {
-                    addFloatingText(snake.position, "HYPERSONIC BURST ACTIVE!", Color(0xFFFF5722))
+                    floatingTexts.add(FloatingText(snake.position, "HYPERSONIC BURST ACTIVE!", Color(0xFFFF5722)))
                     triggerHaptic("medium")
                     cameraShake = 5f
                 }
                 spawnRingParticles(snake.position, Color(0xFFFF5722), 20, 7f)
             }
             "GHOST_PHASE" -> {
-                snake.abilityActiveDuration = ABILITY_GHOST_DURATION
-                snake.abilityCooldownRemaining = COOLDOWN_GHOST
+                snake.abilityActiveDuration = 180 // lasts 3 seconds
+                snake.abilityCooldownRemaining = 540 // 9 second cooldown
                 snake.specialAbilityActive = true
                 snake.activePowerUpType = PowerUpType.GHOST
-                snake.powerUpTimer = ABILITY_GHOST_DURATION
+                snake.powerUpTimer = 180
                 if (snake.isPlayer) {
-                    addFloatingText(snake.position, "GHOST INDUCTION ACTIVE!", Color(0xFFB0BEC5))
+                    floatingTexts.add(FloatingText(snake.position, "GHOST INDUCTION ACTIVE!", Color(0xFFB0BEC5)))
                     triggerHaptic("light")
                 }
                 spawnRingParticles(snake.position, Color(0xFFCFD8DC), 15, 6f)
@@ -1173,94 +1126,127 @@ class GameEngine {
     }
 
     private fun spawnRingParticles(center: Vector2D, color: Color, count: Int, speed: Float) {
-        repeat(count) { i ->
+        for (i in 0 until count) {
             val angle = (i * (2 * Math.PI / count)).toFloat()
             val vel = Vector2D(cos(angle.toDouble()).toFloat() * speed, sin(angle.toDouble()).toFloat() * speed)
-            addParticle(center, vel, color, alpha = 1f, fadeSpeed = 0.04f, size = 9f)
+            particles.add(
+                Particle(
+                    center,
+                    vel,
+                    color,
+                    alpha = 1.0f,
+                    fadeSpeed = 0.04f,
+                    size = 9f
+                )
+            )
         }
     }
 
-    // ---------- Body management ----------
-
     private fun updateBodySegments(snake: Snake) {
+        // Snake moves. Head positions inserted at index 0.
+        // We crop body size up to current tracked length * 4.
+        // Node spline interpolation spacing. Segment is spawned every 4-5 ticks/frames.
         snake.body.add(0, Vector2D(snake.position.x, snake.position.y))
-        val target = snake.length * BODY_SEGMENT_GAP
-        while (snake.body.size > target) {
+        
+        val gap = 6 // step spacing between body rendering sections
+        val targetSize = snake.length * gap
+        while (snake.body.size > targetSize) {
             snake.body.removeAt(snake.body.lastIndex)
         }
     }
 
-    // ---------- Elimination ----------
-
     private fun eliminateSnake(snake: Snake) {
+        // Spawn premium food orbs in a beautiful spline configuration where they died
         val step = maxOf(1, snake.body.size / 10)
         for (i in 0 until snake.body.size step step) {
-            val seg = snake.body[i]
-            synchronized(_orbs) {
-                _orbs.add(Orb(UUID.randomUUID().toString(), seg, 12f, snake.primaryColor, 15, true))
-            }
-            repeat(3) {
-                addParticle(
-                    seg,
-                    Vector2D(Random.nextFloat() * 8f - 4f, Random.nextFloat() * 8f - 4f),
-                    snake.secondaryColor,
-                    alpha = 1f,
-                    fadeSpeed = 0.03f,
-                    size = 10f
+            val segmentPos = snake.body[i]
+            val bigOrb = Orb(
+                id = UUID.randomUUID().toString(),
+                position = segmentPos,
+                size = 12f,
+                color = snake.primaryColor,
+                points = 15,
+                isSuperOrb = true
+            )
+            orbs.add(bigOrb)
+
+            // Spawn explosive cosmic stargaze nebula graphic particles
+            for (j in 0..3) {
+                val vel = Vector2D(
+                    (Random.nextFloat() * 10f - 5f),
+                    (Random.nextFloat() * 10f - 5f)
+                )
+                val isNebulaPuff = j == 0
+                val isStarGlitter = j == 1
+                particles.add(
+                    Particle(
+                        position = segmentPos,
+                        velocity = vel,
+                        color = if (isStarGlitter) Color.White else (if (isNebulaPuff) snake.primaryColor else snake.secondaryColor),
+                        alpha = 1.0f,
+                        fadeSpeed = if (isNebulaPuff) 0.02f else 0.05f,
+                        size = if (isNebulaPuff) 16f else (if (isStarGlitter) 7f else 10f),
+                        isStar = isStarGlitter,
+                        isNebula = isNebulaPuff
+                    )
                 )
             }
         }
     }
 
-    // ---------- Kill events ----------
-
     fun publishKill(killer: Snake?, victim: Snake, cause: String) {
-        val weapon = when (cause) {
+        val weaponOrCause = when (cause) {
             "collision" -> {
                 if (killer != null) {
                     when {
                         killer.specialAbilityActive && killer.activeAbilityType == "SPEED_BURST" -> "Overdrive Strike ⚡"
                         killer.specialAbilityActive && killer.activeAbilityType == "SHIELD" -> "Forcefield Smash 🛡️"
-                        killer.specialAbilityActive && killer.activeAbilityType == "FREEZE_PULSE" -> "Sub‑Zero Slam ❄️"
+                        killer.specialAbilityActive && killer.activeAbilityType == "FREEZE_PULSE" -> "Sub-Zero Slam ❄️"
                         killer.specialAbilityActive && killer.activeAbilityType == "EMP_BLAST" -> "EMP Disruptor 💥"
                         killer.specialAbilityActive && killer.activeAbilityType == "GHOST_PHASE" -> "Phased Ambush 👻"
                         else -> "Grid Collision 💥"
                     }
-                } else "Grid Collision 💥"
+                } else {
+                    "Grid Collision 💥"
+                }
             }
-            "electro_gate" -> "Electro‑Gate Overload ⚡"
+            "electro_gate" -> "Electro-Gate Overload ⚡"
             "lava_pit" -> "Thermal Lava Melt 🔥"
             "ice_spike" -> "Glacial Spear Pierced ❄️"
             "quantum_vortex" -> "Singularity Collapse 🌌"
-            "border" -> "Vector Out‑of‑Bounds 🚫"
+            "border" -> "Vector Out-of-Bounds 🚫"
             "safe_zone" -> "System Zone Dissolution ☠️"
             else -> cause
         }
-        synchronized(_killEvents) {
-            _killEvents.add(0, KillEvent(UUID.randomUUID().toString(), killer?.name, victim.name, weapon))
-            if (_killEvents.size > 5) _killEvents.removeAt(_killEvents.lastIndex)
+        val event = KillEvent(
+            id = java.util.UUID.randomUUID().toString(),
+            killerName = killer?.name,
+            victimName = victim.name,
+            weaponOrCause = weaponOrCause
+        )
+        synchronized(killEvents) {
+            killEvents.add(0, event)
+            if (killEvents.size > 5) {
+                killEvents.removeAt(killEvents.lastIndex)
+            }
         }
     }
 
-    // ---------- Visual effect helpers ----------
-
-    private fun addParticle(
-        position: Vector2D,
-        velocity: Vector2D,
-        color: Color,
-        alpha: Float = 1f,
-        fadeSpeed: Float = 0.05f,
-        size: Float = 5f
-    ) {
-        synchronized(_particles) {
-            _particles.add(Particle(position, velocity, color, alpha, fadeSpeed, size))
-        }
+    private fun determinePlacement() {
+        // Placement corresponds to order of other live snakes remaining
+        val liveBotsCount = snakes.filter { !it.isPlayer && it.isAlive }.size
+        rankingPlacement = liveBotsCount + 1
+        // Assign coins based on performance
+        val scaleCoeff = if (rankingPlacement == 1) 350 else if (rankingPlacement <= 3) 150 else 30
+        totalCoinsEarned += scaleCoeff
+        totalXpEarned += (400 - (rankingPlacement * 20)).coerceAtLeast(50)
     }
 
-    private fun addFloatingText(position: Vector2D, text: String, color: Color) {
-        synchronized(_floatingTexts) {
-            _floatingTexts.add(FloatingText(position, text, color))
-        }
+    private fun updateLeaderboard() {
+        alivePlayersCount = snakes.filter { it.isAlive }.size
+        val ranked = snakes.map { Pair(it.name, it.score) }.sortedByDescending { it.second }
+        rankingList.clear()
+        rankingList.addAll(ranked.take(10))
     }
 
     private fun triggerHaptic(type: String) {
