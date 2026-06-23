@@ -51,6 +51,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     var privateRoomCode: String = ""
     val selectedAbility = MutableStateFlow("SHIELD")
+    val maxMatchSnakes = MutableStateFlow(16)
 
     fun startNewGame(mode: String, theme: ArenaTheme, roomCode: String = "") {
         this.privateRoomCode = roomCode
@@ -59,6 +60,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val skin = user?.currentSkin ?: "Neon Cyber"
             
             gameEngine.selectedPlayerAbility = selectedAbility.value
+            gameEngine.maxMatchSnakes = maxMatchSnakes.value
             gameEngine.gameMode = mode
             gameEngine.arenaTheme = theme
             gameEngine.resetEngine()
@@ -141,8 +143,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             if (completedNow || currentVal != ach.currentValue) {
-                // Direct call – repository now has the methods
-                repository.updateAchievementProgress(ach.id, currentVal, completedNow)
+                repository.updateAchievementProgressDirect(ach.id, currentVal, completedNow)
                 if (completedNow) {
                     repository.claimAchievementReward(ach.id, ach.rewardCoins)
                 }
@@ -242,11 +243,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         v.vibrate(VibrationEffect.createOneShot(duration, strength))
                     } else {
-                        @Suppress("DEPRECATION")
                         v.vibrate(duration)
                     }
                 }
             } catch (e: Exception) {
+                // Safely ignore if the hardware or permission is not available/configured
                 e.printStackTrace()
             }
         }

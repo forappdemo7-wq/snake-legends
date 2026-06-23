@@ -18,6 +18,7 @@ class GameEngine {
     // Match configurations
     var gameMode: String = "Casual" // Casual, Ranked, Battle Royale, Private Room
     var arenaTheme: ArenaTheme = ArenaTheme.CYBER_CITY
+    var maxMatchSnakes: Int = 16
 
     // Lists of objects
     val snakes = mutableListOf<Snake>()
@@ -77,44 +78,86 @@ class GameEngine {
         totalCoinsEarned = 0
         totalXpEarned = 0
         totalKills = 0
-        safeZoneRadius = if (gameMode == "Battle Royale") 2500f else 4500f
+
+        // Determine arena dimensions depending on user selected maxMatchSnakes
+        when (maxMatchSnakes) {
+            16 -> {
+                arenaWidth = 4000f
+                arenaHeight = 4000f
+            }
+            50 -> {
+                arenaWidth = 6000f
+                arenaHeight = 6000f
+            }
+            100 -> {
+                arenaWidth = 8500f
+                arenaHeight = 8500f
+            }
+            else -> {
+                arenaWidth = 4000f
+                arenaHeight = 4000f
+            }
+        }
+
+        safeZoneRadius = if (gameMode == "Battle Royale") {
+            when (maxMatchSnakes) {
+                16 -> 2500f
+                50 -> 3800f
+                100 -> 5400f
+                else -> 2500f
+            }
+        } else {
+            when (maxMatchSnakes) {
+                16 -> 4500f
+                50 -> 6500f
+                100 -> 9000f
+                else -> 4500f
+            }
+        }
         safeZoneCenter = Vector2D(arenaWidth / 2f, arenaHeight / 2f)
         isSafeZoneShrinking = gameMode == "Battle Royale"
 
         val random = Random(System.currentTimeMillis())
+        val hazardMultiplier = when (maxMatchSnakes) {
+            16 -> 1.0f
+            50 -> 2.2f
+            100 -> 4.5f
+            else -> 1.0f
+        }
+
         when (arenaTheme) {
             ArenaTheme.CYBER_CITY -> {
-                for (i in 0 until 12) {
+                for (i in 0 until (12 * hazardMultiplier).toInt()) {
                     val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
                     hazards.add(Hazard(id = "electro_$i", type = "electro_gate", position = pos, size = 50f))
                 }
             }
             ArenaTheme.LAVA_WORLD -> {
-                for (i in 0 until 14) {
+                for (i in 0 until (14 * hazardMultiplier).toInt()) {
                     val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
                     hazards.add(Hazard(id = "lava_$i", type = "lava_pit", position = pos, size = 65f))
                 }
             }
             ArenaTheme.FROZEN_ARENA -> {
-                for (i in 0 until 16) {
+                for (i in 0 until (16 * hazardMultiplier).toInt()) {
                     val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
                     hazards.add(Hazard(id = "ice_$i", type = "ice_spike", position = pos, size = 45f))
                 }
             }
             ArenaTheme.JUNGLE_TEMPLE -> {
-                for (i in 0 until 10) {
+                for (i in 0 until (10 * hazardMultiplier).toInt()) {
                     val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
                     hazards.add(Hazard(id = "totem_$i", type = "totem", position = pos, size = 55f))
                 }
             }
             ArenaTheme.SPACE_STATION -> {
-                for (i in 0 until 8) {
+                for (i in 0 until (8 * hazardMultiplier).toInt()) {
                     val pos = Vector2D(random.nextFloat() * (arenaWidth - 500f) + 250f, random.nextFloat() * (arenaHeight - 500f) + 250f)
                     hazards.add(Hazard(id = "vortex_$i", type = "quantum_vortex", position = pos, size = 80f))
                 }
             }
             ArenaTheme.NEON_GRID -> {
-                for (i in 0 until 12) {
+                for (i in 0 until (12 * hazardMultiplier).toInt()) {
                     val pos = Vector2D(random.nextFloat() * (arenaWidth - 400f) + 200f, random.nextFloat() * (arenaHeight - 400f) + 200f)
                     hazards.add(Hazard(id = "laser_$i", type = "neon_gate", position = pos, size = 40f))
                 }
@@ -143,23 +186,31 @@ class GameEngine {
         playerSnake = player
         snakes.add(player)
 
-        // Spawn Bot Snakes (up to 15 bots)
+        // Spawn Bot Snakes
         val botNames = listOf(
             "ViperX", "ShadowCrawl", "NeonVenom", "ApexViper", "SlitherKing",
             "SlinkyMaster", "Wraith", "CobaltFangs", "CrimsonOuroboros", "GlitchSnake",
             "StealthBoa", "HydraMax", "PhantomStrider", "AbyssGlow", "VenomGod"
         )
+        val totalBots = maxMatchSnakes - 1
+        val prefixes = listOf("Giga", "Shadow", "Neon", "Apex", "Viper", "Slither", "Wrath", "Phantom", "Abyss", "Venom", "Cyber", "Mega", "Alpha", "Zenith", "Turbo", "Cosmic", "Rogue", "Solar", "Glitch", "Aero")
+        val suffixes = listOf("King", "Master", "Fangs", "Strider", "Glow", "God", "Boa", "Glidr", "X", "Alpha", "Slayer", "Onyx", "Rider", "Wraith", "Specter", "Nova", "Pulse", "Crawl", "Strike", "Titan")
 
-        for (i in 0 until botNames.size) {
+        for (i in 0 until totalBots) {
             val botAngle = Random.nextFloat() * 6.28f
             val botPos = Vector2D(
                 Random.nextFloat() * (arenaWidth - 400f) + 200f,
                 Random.nextFloat() * (arenaHeight - 400f) + 200f
             )
             val colors = getRandomColorsForBot()
+            val name = if (i < botNames.size) {
+                botNames[i]
+            } else {
+                "${prefixes.random(random)}_${suffixes.random(random)}${Random.nextInt(5, 99)}"
+            }
             val bot = Snake(
                 id = "bot_$i",
-                name = botNames[i],
+                name = name,
                 isPlayer = false,
                 position = botPos,
                 angle = botAngle,
@@ -175,9 +226,21 @@ class GameEngine {
             snakes.add(bot)
         }
 
-        // Spawn initial energy orbs (Upgraded density to match the spacious 4000x4000 arena size!)
-        spawnOrbs(450)
-        spawnPowerUps(15)
+        // Spawn initial energy orbs dynamically scaled to Arena scale
+        val orbAmount = when (maxMatchSnakes) {
+            16 -> 450
+            50 -> 1000
+            100 -> 2200
+            else -> 450
+        }
+        val powerUpAmount = when (maxMatchSnakes) {
+            16 -> 15
+            50 -> 35
+            100 -> 80
+            else -> 15
+        }
+        spawnOrbs(orbAmount)
+        spawnPowerUps(powerUpAmount)
         updateLeaderboard()
     }
 

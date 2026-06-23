@@ -364,6 +364,15 @@ fun LobbyScreen(
                         )
                     }
 
+                    item(key = "portrait_match_scale") {
+                        val maxSnakesState by viewModel.maxMatchSnakes.collectAsStateWithLifecycle()
+                        SectionTitle("MATCH SCALE & DENSITY")
+                        MatchScaleRow(
+                            selectedScale = maxSnakesState,
+                            onScaleSelected = { viewModel.maxMatchSnakes.value = it }
+                        )
+                    }
+
                     item(key = "portrait_tactical_row") {
                         SectionTitle("TACTICAL CLASS")
                         TacticalClassRow(
@@ -1031,6 +1040,101 @@ data class ClassInfo(
     val color: Color,
     val cooldown: Int
 )
+
+// ========== Match Scale Selection (16, 50, 100 Snakes) ==========
+@Composable
+fun MatchScaleRow(
+    selectedScale: Int,
+    onScaleSelected: (Int) -> Unit
+) {
+    val scales = listOf(
+        Triple(16, "16 Snakes", "Compact Map"),
+        Triple(50, "50 Snakes", "Spacious Arena"),
+        Triple(100, "100 Snakes", "Gigantic Megamap")
+    )
+
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp)
+    ) {
+        items(scales) { (count, label, description) ->
+            val isSelected = selectedScale == count
+            MatchScaleCardV2(
+                count = count,
+                label = label,
+                description = description,
+                isSelected = isSelected,
+                onClick = { onScaleSelected(count) },
+                modifier = Modifier.width(140.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun MatchScaleCardV2(
+    count: Int,
+    label: String,
+    description: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderAnim by animateColorAsState(
+        targetValue = if (isSelected) Color(0xFF00FFCC) else Color.Transparent,
+        animationSpec = tween(300),
+        label = "scaleBorder"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.05f else 1f,
+        animationSpec = spring(),
+        label = "scaleScale"
+    )
+
+    Card(
+        modifier = modifier
+            .height(100.dp)
+            .scale(scale)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Color(0xFF00FFCC).copy(alpha = 0.15f) else Surface
+        ),
+        border = BorderStroke(2.dp, borderAnim)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = when (count) {
+                        16 -> Icons.Default.Person
+                        50 -> Icons.Default.Group
+                        else -> Icons.Default.Groups
+                    },
+                    contentDescription = null,
+                    tint = if (isSelected) Color(0xFF00FFCC) else TextGray,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = label,
+                    color = if (isSelected) Color(0xFF00FFCC) else TextWhite,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = description,
+                    color = TextLight,
+                    fontSize = 10.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
 
 // ========== Daily Login Reward ==========
 @Composable
