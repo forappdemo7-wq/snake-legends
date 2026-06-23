@@ -86,6 +86,7 @@ fun LobbyScreen(
     var editedName by remember { mutableStateOf("") }
     var showPrivateRoomDialog by remember { mutableStateOf(false) }
     var showMultiplayerSettings by remember { mutableStateOf(false) }
+    var showMatchSettingsDialog by remember { mutableStateOf(false) }
 
     val rankTier by derivedStateOf { getRankTier(userProfile?.rankedScore ?: 0) }
     val xpProgress by derivedStateOf {
@@ -265,7 +266,7 @@ fun LobbyScreen(
                         MultiplayerSelectorV2(
                             selectedMode = selectedMode,
                             onModeSelected = { selectedMode = it },
-                            onSettingsClick = { showMultiplayerSettings = true }
+                            onSettingsClick = { showMatchSettingsDialog = true }
                         )
 
                         RoyalPassCard(
@@ -275,6 +276,98 @@ fun LobbyScreen(
                                 // Claim battle pass rewards
                                 viewModel.earnFreeCoins(300)
                             }
+                        )
+
+                        // Inline Private Room Lobby if chosen
+                        if (selectedMode == "Private Room") {
+                            SectionTitle("PRIVATE LOBBY PORTAL")
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Surface),
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.5.dp, Primary)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Lobby Code Setup", color = TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Button(
+                                            onClick = {
+                                                val prefixes = listOf("SNAKE", "CYBER", "VIPER", "COBRA", "ARENA", "NEON", "KODEX", "SLITHR")
+                                                privateRoomCode = "${prefixes.random()}-${(100..999).random()}"
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(30.dp)
+                                        ) {
+                                            Text("GENERATE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    OutlinedTextField(
+                                        value = privateRoomCode,
+                                        onValueChange = { privateRoomCode = it.uppercase() },
+                                        placeholder = { Text("Enter room code...", color = TextLight, fontSize = 12.sp) },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = TextWhite,
+                                            unfocusedTextColor = TextWhite,
+                                            focusedBorderColor = Primary,
+                                            unfocusedBorderColor = TextLight.copy(alpha = 0.4f)
+                                        ),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp),
+                                        singleLine = true
+                                    )
+
+                                    var chatTextLocal by remember { mutableStateOf("") }
+                                    MultiplayerLobbyCard(
+                                        mpStatus = mpStatus,
+                                        mpManager = mpManager,
+                                        userProfile = userProfile,
+                                        privateRoomCode = privateRoomCode,
+                                        chatTextInput = chatTextLocal,
+                                        onChatTextChange = { chatTextLocal = it },
+                                        onSendMessage = {
+                                            if (chatTextLocal.isNotBlank()) {
+                                                mpManager.broadcastChatMessage(chatTextLocal)
+                                                chatTextLocal = ""
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        SectionTitle("GAME MODES")
+                        GameModeRow(
+                            selectedMode = selectedMode,
+                            onModeSelected = { selectedMode = it }
+                        )
+
+                        SectionTitle("ARENA THEMES")
+                        ArenaThemeRow(
+                            selectedTheme = selectedTheme,
+                            onThemeSelected = { selectedTheme = it }
+                        )
+
+                        val maxSnakesState by viewModel.maxMatchSnakes.collectAsStateWithLifecycle()
+                        SectionTitle("MATCH SCALE & DENSITY")
+                        MatchScaleRow(
+                            selectedScale = maxSnakesState,
+                            onScaleSelected = { viewModel.maxMatchSnakes.value = it }
+                        )
+
+                        SectionTitle("TACTICAL CLASS")
+                        TacticalClassRow(
+                            selectedClass = selectedClass,
+                            onClassSelected = { viewModel.selectedAbility.value = it }
                         )
                     }
                 }
@@ -325,7 +418,7 @@ fun LobbyScreen(
                         MultiplayerSelectorV2(
                             selectedMode = selectedMode,
                             onModeSelected = { selectedMode = it },
-                            onSettingsClick = { showMultiplayerSettings = true }
+                            onSettingsClick = { showMatchSettingsDialog = true }
                         )
                     }
 
@@ -354,6 +447,74 @@ fun LobbyScreen(
                             selectedMode = selectedMode,
                             onModeSelected = { selectedMode = it }
                         )
+                    }
+
+                    if (selectedMode == "Private Room") {
+                        item(key = "portrait_private_lobby_portal") {
+                            SectionTitle("PRIVATE LOBBY PORTAL")
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Surface),
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.5.dp, Primary)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Lobby Code Setup", color = TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Button(
+                                            onClick = {
+                                                val prefixes = listOf("SNAKE", "CYBER", "VIPER", "COBRA", "ARENA", "NEON", "KODEX", "SLITHR")
+                                                privateRoomCode = "${prefixes.random()}-${(100..999).random()}"
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(30.dp)
+                                        ) {
+                                            Text("GENERATE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    OutlinedTextField(
+                                        value = privateRoomCode,
+                                        onValueChange = { privateRoomCode = it.uppercase() },
+                                        placeholder = { Text("Enter room code...", color = TextLight, fontSize = 12.sp) },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = TextWhite,
+                                            unfocusedTextColor = TextWhite,
+                                            focusedBorderColor = Primary,
+                                            unfocusedBorderColor = TextLight.copy(alpha = 0.4f)
+                                        ),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp),
+                                        singleLine = true
+                                    )
+
+                                    var chatTextLocal by remember { mutableStateOf("") }
+                                    MultiplayerLobbyCard(
+                                        mpStatus = mpStatus,
+                                        mpManager = mpManager,
+                                        userProfile = userProfile,
+                                        privateRoomCode = privateRoomCode,
+                                        chatTextInput = chatTextLocal,
+                                        onChatTextChange = { chatTextLocal = it },
+                                        onSendMessage = {
+                                            if (chatTextLocal.isNotBlank()) {
+                                                mpManager.broadcastChatMessage(chatTextLocal)
+                                                chatTextLocal = ""
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     item(key = "portrait_themes_row") {
@@ -421,6 +582,40 @@ fun LobbyScreen(
         MultiplayerSettingsSheet(
             mpManager = mpManager,
             onDismiss = { showMultiplayerSettings = false }
+        )
+    }
+
+    if (showMatchSettingsDialog) {
+        MatchSettingsDialog(
+            viewModel = viewModel,
+            selectedMode = selectedMode,
+            onModeSelected = { selectedMode = it },
+            selectedTheme = selectedTheme,
+            onThemeSelected = { selectedTheme = it },
+            selectedClass = selectedClass,
+            onClassSelected = { viewModel.selectedAbility.value = it },
+            privateRoomCode = privateRoomCode,
+            onCodeChange = { privateRoomCode = it },
+            mpManager = mpManager,
+            mpStatus = mpStatus,
+            userProfile = userProfile,
+            onStartBattle = {
+                val finalCode = if (selectedMode == "Private Room") {
+                    if (privateRoomCode.isBlank()) {
+                        val prefixes = listOf("SNAKE", "CYBER", "VIPER", "COBRA", "ARENA", "NEON", "KODEX", "SLITHR")
+                        val code = "${prefixes.random()}-${(100..999).random()}"
+                        privateRoomCode = code
+                        code
+                    } else privateRoomCode
+                } else ""
+
+                if (selectedMode == "Private Room" && mpStatus == ConnectionStatus.CONNECTED) {
+                    mpManager.broadcastStartMatchTrigger()
+                }
+                viewModel.startNewGame(selectedMode, selectedTheme, finalCode)
+                if (selectedMode == "Private Room") mpManager.disconnect()
+            },
+            onDismiss = { showMatchSettingsDialog = false }
         )
     }
 }
@@ -3647,7 +3842,7 @@ fun MultiplayerSelectorV2(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("Classic" to "Casual", "Teams" to "Royale", "Rush" to "Rush").forEach { (label, rawMode) ->
+                listOf("Classic" to "Casual", "Royale" to "Battle Royale", "Private" to "Private Room").forEach { (label, rawMode) ->
                     val isActive = selectedMode == rawMode
                     Box(
                         modifier = Modifier
@@ -4363,3 +4558,305 @@ fun HexGridLiveSnakePreview(
 }
 
 private val corner_indices = listOf(0, 1, 2, 3, 4, 5)
+
+// ========== Custom Match Settings Modal (Dialog) ==========
+@Composable
+fun MatchSettingsDialog(
+    viewModel: GameViewModel,
+    selectedMode: String,
+    onModeSelected: (String) -> Unit,
+    selectedTheme: ArenaTheme,
+    onThemeSelected: (ArenaTheme) -> Unit,
+    selectedClass: String,
+    onClassSelected: (String) -> Unit,
+    privateRoomCode: String,
+    onCodeChange: (String) -> Unit,
+    mpManager: MultiplayerManager,
+    mpStatus: ConnectionStatus,
+    userProfile: UserProfile?,
+    onStartBattle: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp || configuration.screenWidthDp >= 600
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0F172A),
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier
+            .fillMaxWidth(if (isLandscape) 0.82f else 0.95f)
+            .padding(vertical = 12.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "MATCH CONFIGURATION",
+                        color = Color(0xFF22D3EE),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = Shadow(color = Color(0xFF1D4ED8), offset = Offset(1f, 1f), blurRadius = 2f)
+                        )
+                    )
+                    Text(
+                        text = "Adjust battle size scale, bots count & match options",
+                        color = Color(0xFF64748B),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1E293B))
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close Settings",
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Section 1: MATCH SCALE (Snakes count & Map size)
+                Column {
+                    Text(
+                        text = "MATCH SCALE (SNAKE DENSITY)",
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val scaleOptions = listOf(
+                        Triple(16, "16 Snakes", "Compact Map"),
+                        Triple(50, "50 Snakes", "Spacious Arena"),
+                        Triple(100, "100 Snakes", "Gigantic Megamap")
+                    )
+
+                    val activeScale by viewModel.maxMatchSnakes.collectAsStateWithLifecycle()
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        scaleOptions.forEach { (count, label, desc) ->
+                            val isSelected = count == activeScale
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) Color(0xFF1E3A8A).copy(alpha = 0.6f) else Color(0xFF151C30))
+                                    .border(
+                                        width = 1.2.dp,
+                                        color = if (isSelected) Color(0xFF00FFCC) else Color(0xFF1E293B),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { viewModel.maxMatchSnakes.value = count }
+                                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) Color(0xFF00FFCC) else Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = desc,
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Section 2: GAME MODES Selection
+                Column {
+                    Text(
+                        text = "GAME MODE TYPE",
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    GameModeRow(
+                        selectedMode = selectedMode,
+                        onModeSelected = onModeSelected
+                    )
+                }
+
+                // Section 3: ARENA MAPS THEME
+                Column {
+                    Text(
+                        text = "ARENA MAP THEMES",
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ArenaThemeRow(
+                        selectedTheme = selectedTheme,
+                        onThemeSelected = onThemeSelected
+                    )
+                }
+
+                // Section 4: TACTICAL CLASS ABILITY
+                Column {
+                    Text(
+                        text = "TACTICAL CLASS ABILITY",
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TacticalClassRow(
+                        selectedClass = selectedClass,
+                        onClassSelected = onClassSelected
+                    )
+                }
+
+                // Section 5: MULTIPLAYER CODES PORTAL
+                if (selectedMode == "Private Room") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.3f))
+                            .border(1.dp, Color(0xFF0284C7).copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(if (mpStatus == ConnectionStatus.CONNECTED) Color.Green else Color.Red)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "MULTIPLAYER PORTAL (Private)",
+                                    color = Color(0xFF00FFCC),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    val prefixes = listOf("SNAKE", "CYBER", "VIPER", "COBRA", "ARENA", "NEON", "KODEX", "SLITHR")
+                                    val generated = "${prefixes.random()}-${(100..999).random()}"
+                                    onCodeChange(generated)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("GENERATE CODE", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = privateRoomCode,
+                            onValueChange = { onCodeChange(it.uppercase()) },
+                            placeholder = { Text("No active code. Click GENERATE or enter code...", color = Color(0xFF64748B), fontSize = 11.sp) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFF00FFCC),
+                                unfocusedBorderColor = Color(0xFF334155)
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true
+                        )
+
+                        var chatTextLocal by remember { mutableStateOf("") }
+                        MultiplayerLobbyCard(
+                            mpStatus = mpStatus,
+                            mpManager = mpManager,
+                            userProfile = userProfile,
+                            privateRoomCode = privateRoomCode,
+                            chatTextInput = chatTextLocal,
+                            onChatTextChange = { chatTextLocal = it },
+                            onSendMessage = {
+                                if (chatTextLocal.isNotBlank()) {
+                                    mpManager.broadcastChatMessage(chatTextLocal)
+                                    chatTextLocal = ""
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    border = BorderStroke(1.dp, Color(0xFF22D3EE)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("SAVE", color = Color(0xFF22D3EE), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = {
+                        onDismiss()
+                        onStartBattle()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9E00)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1.3f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("BATTLE NOW", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                }
+            }
+        }
+    )
+}
