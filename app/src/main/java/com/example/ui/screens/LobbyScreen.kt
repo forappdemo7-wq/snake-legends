@@ -1616,72 +1616,617 @@ fun PrivateRoomDialog(
     )
 }
 
-// ========== Multiplayer Settings Sheet (unchanged, but restyled) ==========
+// ========== Multiplayer Settings Sheet (Upgraded Arcade Settings Dashboard) ==========
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MultiplayerSettingsSheet(
     mpManager: MultiplayerManager,
     onDismiss: () -> Unit
 ) {
+    var selectedSettingsTab by remember { mutableStateOf("NETWORK") }
+
+    // Simulation states for controls & aesthetic parameters
+    var controlScheme by remember { mutableStateOf("Joystick") } // "Joystick", "Swipe", "D-Pad"
+    var joystickSensitivity by remember { mutableStateOf(1.2f) }
+    var matchHaptics by remember { mutableStateOf(true) }
+    var soundMusicVolume by remember { mutableStateOf(0.75f) }
+    var soundSfxVolume by remember { mutableStateOf(0.85f) }
+    var renderQualityMode by remember { mutableStateOf("Turbo (120FPS)") } // "Eco (30FPS)", "Pro (60FPS)", "Turbo (120FPS)"
+    var customParticleMultiplier by remember { mutableStateOf(0.8f) }
+    var interfaceThemeMode by remember { mutableStateOf("Neo Cyber") }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Surface,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        containerColor = Color(0xFF0F172A),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .width(44.dp)
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF334155))
+            )
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .navigationBarsPadding()
+                .padding(start = 24.dp, end = 24.dp, bottom = 40.dp)
         ) {
-            Text("Network Settings", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            // Region
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Server Region", color = TextGray, fontSize = 16.sp)
-                Button(
-                    onClick = {
-                        val regions = ServerRegion.values()
-                        val next = (mpManager.selectedRegion.ordinal + 1) % regions.size
-                        mpManager.selectedRegion = regions[next]
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Surface, contentColor = Primary),
-                    border = BorderStroke(1.dp, Primary)
-                ) {
-                    Text(mpManager.selectedRegion.regionName)
-                }
-            }
-            // Lag Compensation
+            // Header HUD Title Section
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Lag Compensation", color = TextWhite, fontSize = 16.sp)
-                    Text("Interpolates packets", color = TextLight, fontSize = 12.sp)
-                }
-                Switch(
-                    checked = mpManager.isLagCompensationEnabled,
-                    onCheckedChange = { mpManager.isLagCompensationEnabled = it },
-                    colors = SwitchDefaults.colors(checkedThumbColor = Primary)
-                )
-            }
-            // Tick Rate
-            Text("Tick Rate", color = TextWhite, fontSize = 16.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                listOf(20, 30, 60).forEach { rate ->
-                    FilterChip(
-                        selected = mpManager.tickRateHz == rate,
-                        onClick = { mpManager.tickRateHz = rate },
-                        label = { Text("${rate}Hz") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary,
-                            selectedLabelColor = Color.White
+                    Text(
+                        text = "ARCADE SYSTEM CONFIG",
+                        color = Color(0xFF22D3EE),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = Shadow(color = Color(0xFF1D4ED8), offset = Offset(1f, 1f), blurRadius = 2f)
                         )
+                    )
+                    Text(
+                        text = "Optimize matchmaking feeds, input layout & sensory styling",
+                        color = Color(0xFF64748B),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1E293B))
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close Settings",
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Sub-systems navigation bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    "NETWORK" to "Online",
+                    "CONTROLS" to "Input",
+                    "AESTHETICS" to "Sensory"
+                ).forEach { (tabId, label) ->
+                    val isTabActive = selectedSettingsTab == tabId
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (isTabActive) Color(0xFF1E3A8A).copy(alpha = 0.6f) else Color.Transparent
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isTabActive) Color(0xFF3B82F6).copy(alpha = 0.5f) else Color.Transparent,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .clickable { selectedSettingsTab = tabId }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label.uppercase(),
+                            color = if (isTabActive) Color(0xFF00FFCC) else Color(0xFF64748B),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Tab content block
+            when (selectedSettingsTab) {
+                "NETWORK" -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = Color(0xFF00FFCC),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "MULTIPLAYER MATCHMAKING CORES",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        // Region
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Global Server Zone", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Estimated latency: ${
+                                            when(mpManager.selectedRegion.regionName) {
+                                                "US East" -> "~18ms (Optimal)"
+                                                "EU West" -> "~74ms"
+                                                "Asia Pac" -> "~138ms"
+                                                else -> "~112ms"
+                                            }
+                                        }", 
+                                        color = Color(0xFF22C55E), 
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF1E293B))
+                                        .border(1.dp, Color(0xFF334155), RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            val regions = ServerRegion.values()
+                                            val next = (mpManager.selectedRegion.ordinal + 1) % regions.size
+                                            mpManager.selectedRegion = regions[next]
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = mpManager.selectedRegion.regionName.uppercase(),
+                                        color = Color(0xFF22D3EE),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+
+                        // Lag Compensation
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1.5f)) {
+                                    Text("Delay Wave Compensation", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("Interpolates remote peer positions dynamically to prevent game jitter", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                                }
+                                Switch(
+                                    checked = mpManager.isLagCompensationEnabled,
+                                    onCheckedChange = { mpManager.isLagCompensationEnabled = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF00FFCC),
+                                        checkedTrackColor = Color(0xFF00FFCC).copy(alpha = 0.3f),
+                                        uncheckedThumbColor = Color(0xFF475569),
+                                        uncheckedTrackColor = Color(0xFF1E293B)
+                                    )
+                                )
+                            }
+                        }
+
+                        // Tick Rate
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Text("Engine Simulation Frequency", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Higher frequencies yield accurate snake tracking but increase bandwidth usage", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(20, 30, 60).forEach { rate ->
+                                    val isActive = mpManager.tickRateHz == rate
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isActive) Color(0xFF1E3A8A).copy(alpha = 0.8f) else Color(0xFF1E293B))
+                                            .border(
+                                                width = 1.2.dp,
+                                                color = if (isActive) Color(0xFF3B82F6) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { mpManager.tickRateHz = rate }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "${rate} HZ",
+                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "CONTROLS" -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = Color(0xFFFF9E00),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "TACTILE TENSE SCHEMES",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        // Controller layout select
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Text("Tactile Action Layout", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Choose your preferred slither handling input layout", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("Joystick", "Swipe", "D-Pad").forEach { mode ->
+                                    val isActive = controlScheme == mode
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isActive) Color(0xFF7C2D12).copy(alpha = 0.5f) else Color(0xFF1E293B))
+                                            .border(
+                                                width = 1.2.dp,
+                                                color = if (isActive) Color(0xFFEA580C) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { controlScheme = mode }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = mode.uppercase(),
+                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Sensitivity
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Steering Sensitivity", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = String.format("%.1fx", joystickSensitivity),
+                                    color = Color(0xFFFF9E00),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Text("Adjusts input response acceleration when making fast coils", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Slider(
+                                value = joystickSensitivity,
+                                onValueChange = { joystickSensitivity = it },
+                                valueRange = 0.5f..2.0f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFFF9E00),
+                                    activeTrackColor = Color(0xFFFF9E00),
+                                    inactiveTrackColor = Color(0xFF1E293B)
+                                )
+                            )
+                        }
+
+                        // Toggle Haptics
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1.5f)) {
+                                    Text("Rumble Haptic Resonance", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("Fires tactile feedback rumbles upon feeding or hitting walls", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                                }
+                                Switch(
+                                    checked = matchHaptics,
+                                    onCheckedChange = { matchHaptics = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFFFF9E00),
+                                        checkedTrackColor = Color(0xFFFF9E00).copy(alpha = 0.3f),
+                                        uncheckedThumbColor = Color(0xFF475569),
+                                        uncheckedTrackColor = Color(0xFF1E293B)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                "AESTHETICS" -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                tint = Color(0xFFEC4899),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "GRAPHICAL & SONIC RENDERING",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        // Music and sound FX sliders
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Synth Background Music (BGM)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "${(soundMusicVolume * 100).toInt()}%",
+                                    color = Color(0xFFEC4899),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Slider(
+                                value = soundMusicVolume,
+                                onValueChange = { soundMusicVolume = it },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFEC4899),
+                                    activeTrackColor = Color(0xFFEC4899),
+                                    inactiveTrackColor = Color(0xFF1E293B)
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Arcade Feed Sound Effects (SFX)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "${(soundSfxVolume * 100).toInt()}%",
+                                    color = Color(0xFFEC4899),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Slider(
+                                value = soundSfxVolume,
+                                onValueChange = { soundSfxVolume = it },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFEC4899),
+                                    activeTrackColor = Color(0xFFEC4899),
+                                    inactiveTrackColor = Color(0xFF1E293B)
+                                )
+                            )
+                        }
+
+                        // Visual performance caps
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Text("Sensory Frame-Rate Limit", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Smoother frame updates require active screen-reign graphics adapters", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("Eco (30FPS)", "Pro (60FPS)", "Turbo (120FPS)").forEach { qOpt ->
+                                    val isActive = renderQualityMode == qOpt
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1.1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isActive) Color(0xFF4C1D95).copy(alpha = 0.5f) else Color(0xFF1E293B))
+                                            .border(
+                                                width = 1.2.dp,
+                                                color = if (isActive) Color(0xFFA78BFA) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { renderQualityMode = qOpt }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = qOpt.uppercase(),
+                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Color theme modes
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Text("Aesthetic Color Theme", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("Neo Cyber", "Prismatic", "Solar Flare").forEach { thm ->
+                                    val isActive = interfaceThemeMode == thm
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isActive) Color(0xFF831843).copy(alpha = 0.5f) else Color(0xFF1E293B))
+                                            .border(
+                                                width = 1.2.dp,
+                                                color = if (isActive) Color(0xFFF43F5E) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { interfaceThemeMode = thm }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = thm.uppercase(),
+                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // Action Apply Footer
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "APPLY CONFIGURATION",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
                     )
                 }
             }

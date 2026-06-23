@@ -1290,53 +1290,149 @@ fun GameScreen(
                 }
             }
 
-            // DANGER COLLAPSE WARNING (Outer ring warning)
+            // DANGER COLLAPSE WARNING (Immersive full-screen pulsing vignette + clean top pill HUD)
             if (engine.gameMode == "Battle Royale" && player?.isAlive == true) {
                 val dist = player.position.distance(engine.safeZoneCenter)
                 if (dist > engine.safeZoneRadius) {
+                    // Soft pulsing glow vignette across entire viewport boundaries (never blocks middle-screen)
+                    val pulseAlpha by rememberInfiniteTransition(label = "danger_pulse").animateFloat(
+                        initialValue = 0.2f,
+                        targetValue = 0.65f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1200, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "danger_pulse_alpha"
+                    )
                     Box(
                         modifier = Modifier
-                            .align(Alignment.Center)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xE0CC0505))
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .fillMaxSize()
+                            .border(width = 4.dp, color = Color(0xFFFF1744).copy(alpha = pulseAlpha))
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color(0xFFFF1744).copy(alpha = pulseAlpha * 0.35f)
+                                    ),
+                                    radius = 1800f
+                                )
+                            )
+                    )
+
+                    // Sits perfectly at the top, cleanly integrated below the server info counters
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 54.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xE67F1D1D)) // rich warm safety red
+                            .border(1.5.dp, Color(0xFFEF4444), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Zone Collapse warning",
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = "RADIATION DETECTED - RE-ENTER SAFE ZONE!",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // UPGRADED ARCADE SCORE / LENGTH HUD CAPSULE (Cleanly centered on the bottom bezel, leaving gameplay 100% visible)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = (-12).dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xF0070B13))
+                    .border(1.5.dp, Color(0xFF00FFCC).copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Length stat
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF38BDF8))
+                        )
                         Text(
-                            text = "DANGER: REFUGING SAFE ZONE COLLAPSE!",
+                            text = "LENGTH",
+                            color = Color(0xFF64748B),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "${player?.length ?: 0}",
                             color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            textAlign = TextAlign.Center
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(12.dp)
+                            .background(Color(0xFF334155))
+                    )
+
+                    // Score stat
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF00FFCC))
+                        )
+                        Text(
+                            text = "SCORE",
+                            color = Color(0xFF64748B),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "${player?.score ?: 0}",
+                            color = Color(0xFF00FFCC),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace
                         )
                     }
                 }
             }
 
-            // SCORE / LENGTH HUD
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .offset(y = (-110).dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "LENGTH: ${player?.length ?: 0}",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black
-                )
-                Text(
-                    text = "SCORE: ${player?.score ?: 0}",
-                    color = Color(0xFF00FFCC),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // ACTIVE POWER-UP HUD BANNER OVERLAY
+            // ACTIVE POWER-UP HUD BANNER OVERLAY (Cleanly floats just above the bottom HUD capsule)
             if (player?.activePowerUpType != null) {
                 val powerUpType = player.activePowerUpType!!
                 val label = when (powerUpType) {
@@ -1361,7 +1457,7 @@ fun GameScreen(
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .offset(y = (-165).dp)
+                        .offset(y = (-58).dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.Black.copy(alpha = 0.8f))
                         .border(1.5.dp, color, RoundedCornerShape(8.dp))
