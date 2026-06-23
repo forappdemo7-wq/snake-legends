@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -1838,8 +1839,8 @@ fun GameScreen(
 
                                 // Status overview card
                                 val scoreColor = when {
-                                    engine.antiCheat.securityScore.value >= 85 -> Color(0xFF22C55E)
-                                    engine.antiCheat.securityScore.value >= 60 -> Color(0xFFF59E0B)
+                                    engine.antiCheat.securityScore >= 85 -> Color(0xFF22C55E)
+                                    engine.antiCheat.securityScore >= 60 -> Color(0xFFF59E0B)
                                     else -> Color(0xFFEF4444)
                                 }
 
@@ -1873,7 +1874,7 @@ fun GameScreen(
                                                 )
                                             }
                                             Text(
-                                                "SECURITY RATING: ${engine.antiCheat.securityScore.value}%",
+                                                "SECURITY RATING: ${engine.antiCheat.securityScore}%",
                                                 color = scoreColor,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.ExtraBold,
@@ -2019,8 +2020,7 @@ fun GameScreen(
                                             .padding(8.dp)
                                     ) {
                                         val revLogs = engine.antiCheat.integrityLogs.reversed()
-                                        items(revLogs.size) { index ->
-                                            val log = revLogs[index]
+                                        items(revLogs) { log ->
                                             Text(
                                                 text = log,
                                                 color = if (log.contains("ALERT")) Color(0xFFF87171) else Color(0xFF4ADE80),
