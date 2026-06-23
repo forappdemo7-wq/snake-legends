@@ -66,6 +66,7 @@ fun GameScreen(
     var lowGraphicsMode by remember { mutableStateOf(false) }
     var joystickOnRightSide by remember { mutableStateOf(false) }
     var isSettingsOpenInPause by remember { mutableStateOf(false) }
+    var showSecurityTerminalInPause by remember { mutableStateOf(false) }
     var soundVolumeFraction by remember { mutableStateOf(0.8f) }
 
     // Floating touch inputs
@@ -1809,7 +1810,241 @@ fun GameScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        if (!isSettingsOpenInPause) {
+                        if (showSecurityTerminalInPause) {
+                            // SENTINEL ANTI-CHEAT SECURITY PORTAL
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { showSecurityTerminalInPause = false }
+                                    ) {
+                                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color(0xFF00FFCC))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "SENTINEL HEURISTICS CORE",
+                                        color = Color(0xFF00FFCC),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+
+                                // Status overview card
+                                val scoreColor = when {
+                                    engine.antiCheat.securityScore.value >= 85 -> Color(0xFF22C55E)
+                                    engine.antiCheat.securityScore.value >= 60 -> Color(0xFFF59E0B)
+                                    else -> Color(0xFFEF4444)
+                                }
+
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0x33000000)),
+                                    border = BorderStroke(1.dp, Color(0xFF00FFCC).copy(alpha = 0.2f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .clip(CircleShape)
+                                                        .background(if (engine.antiCheat.isSentinelOnline) Color(0xFF22C55E) else Color.Red)
+                                                )
+                                                Text(
+                                                    "SENTINEL ONLINE CHECKER",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                            }
+                                            Text(
+                                                "SECURITY RATING: ${engine.antiCheat.securityScore.value}%",
+                                                color = scoreColor,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+
+                                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceEvenly
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text("CHECKS", color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                                Text("${engine.antiCheat.integrityChecksProcessed}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                            }
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text("TELEPORTS", color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                                Text("${engine.antiCheat.teleportViolationsDetected}", color = if (engine.antiCheat.teleportViolationsDetected > 0) Color(0xFFEF4444) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                            }
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text("SPEEDS", color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                                Text("${engine.antiCheat.speedViolationsDetected}", color = if (engine.antiCheat.speedViolationsDetected > 0) Color(0xFFFF9900) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                            }
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text("SCORES", color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                                Text("${engine.antiCheat.scoreViolationsDetected}", color = if (engine.antiCheat.scoreViolationsDetected > 0) Color(0xFFEF4444) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Interactive Cheat injection simulation header
+                                Text(
+                                    "CHEAT INJECTION SIMULATION PLATFORM",
+                                    color = Color(0xFFA78BFA),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+
+                                // Sandboxed cheat action buttons
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            engine.playerSnake?.let { p ->
+                                                p.speed = 45f // Speedhack Injection
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                        modifier = Modifier.weight(1f).height(38.dp)
+                                    ) {
+                                        Text("SPEED HACK", color = Color(0xFFEF4444), fontSize = 8.5.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            engine.playerSnake?.let { p ->
+                                                p.position = p.position + Vector2D(1200f, 1200f) // Teleport Injection
+                                                p.body.clear()
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                        modifier = Modifier.weight(1f).height(38.dp)
+                                    ) {
+                                        Text("TP HACK", color = Color(0xFFEF4444), fontSize = 8.5.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            engine.playerSnake?.let { p ->
+                                                p.score += 800 // Points Injection
+                                                p.length = 4 + (p.score / 25)
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                        modifier = Modifier.weight(1f).height(38.dp)
+                                    ) {
+                                        Text("SCORE LOBBY", color = Color(0xFFEF4444), fontSize = 8.5.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                    }
+                                }
+
+                                // Security toggle (can disable/enable Sentinel core)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0x06FFFFFF))
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("SENTINEL CORE ENGAGEMENT", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                        Text("Disable validation bounds (Sandbox Mode)", color = Color.Gray, fontSize = 8.sp)
+                                    }
+                                    Switch(
+                                        checked = engine.antiCheat.isSentinelOnline,
+                                        onCheckedChange = { engine.antiCheat.isSentinelOnline = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color(0xFF00FFCC),
+                                            checkedTrackColor = Color(0x3300FFCC),
+                                            uncheckedThumbColor = Color.Gray,
+                                            uncheckedTrackColor = Color.Black
+                                        )
+                                    )
+                                }
+
+                                // Interactive Monospace Logs Console block
+                                Text(
+                                    "REAL-TIME LOGS INTEGRITY CONSOLE",
+                                    color = Color(0xFF00FFCC),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF04060C)),
+                                    border = BorderStroke(1.dp, Color(0xFF00FFCC).copy(alpha = 0.15f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(130.dp)
+                                ) {
+                                    androidx.compose.foundation.lazy.LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(8.dp)
+                                    ) {
+                                        val revLogs = engine.antiCheat.integrityLogs.reversed()
+                                        items(revLogs.size) { index ->
+                                            val log = revLogs[index]
+                                            Text(
+                                                text = log,
+                                                color = if (log.contains("ALERT")) Color(0xFFF87171) else Color(0xFF4ADE80),
+                                                fontSize = 8.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                modifier = Modifier.padding(vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Button(
+                                    onClick = { showSecurityTerminalInPause = false },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(42.dp)
+                                        .padding(top = 4.dp)
+                                ) {
+                                    Text("CONFIRM DEPLOY", color = Color.Black, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                }
+                            }
+                        } else if (!isSettingsOpenInPause) {
                             // MAIN PAUSE CONTROLS
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1901,9 +2136,39 @@ fun GameScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // 3b. Anti-Cheat Security Core Status button
+                                Button(
+                                    onClick = { showSecurityTerminalInPause = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0x2210B981),
+                                        contentColor = Color(0xFF10B981)
+                                    ),
+                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(50.dp)
+                                        .testTag("pause_sentinel_button")
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF10B981))
+                                        Text(
+                                            "SENTINEL ANTI-CHEAT CORE",
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace,
+                                            letterSpacing = 1.sp
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
                                 HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
                                 // 4. Return to Main Menu
                                 TextButton(

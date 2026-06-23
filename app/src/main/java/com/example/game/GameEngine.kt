@@ -29,6 +29,9 @@ class GameEngine {
     val hazards = mutableListOf<Hazard>()
     val killEvents = mutableListOf<KillEvent>()
 
+    // Sentinel Anti-Cheat Security Core
+    val antiCheat = AntiCheatManager()
+
     // Player instance
     var playerSnake: Snake? = null
 
@@ -78,6 +81,7 @@ class GameEngine {
         totalCoinsEarned = 0
         totalXpEarned = 0
         totalKills = 0
+        antiCheat.resetTracker()
 
         // Determine arena dimensions depending on user selected maxMatchSnakes
         when (maxMatchSnakes) {
@@ -797,6 +801,11 @@ class GameEngine {
                         }
                     }
                 }
+            }
+
+            // Sentinel Anti-Cheat Security Audit
+            antiCheat.performValidation(player, floatingTexts) {
+                onHapticTrigger?.invoke("heavy")
             }
         }
 

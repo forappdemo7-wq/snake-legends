@@ -213,6 +213,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun unlockCosmeticDirect(name: String, type: String) {
+        viewModelScope.launch {
+            repository.unlockCosmeticFree(name, type)
+        }
+    }
+
     var hapticsEnabled: Boolean = true
 
     fun updateUsername(newUsername: String) {
