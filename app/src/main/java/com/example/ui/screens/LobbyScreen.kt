@@ -4586,35 +4586,40 @@ fun MatchSettingsDialog(
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier
             .fillMaxWidth(if (isLandscape) 0.82f else 0.95f)
-            .padding(vertical = 12.dp),
+            .padding(vertical = if (isLandscape) 4.dp else 12.dp),
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "MATCH CONFIGURATION",
                         color = Color(0xFF22D3EE),
-                        fontSize = 18.sp,
+                        fontSize = if (isLandscape) 15.sp else 18.sp,
                         fontWeight = FontWeight.Black,
                         fontFamily = FontFamily.Monospace,
                         style = androidx.compose.ui.text.TextStyle(
                             shadow = Shadow(color = Color(0xFF1D4ED8), offset = Offset(1f, 1f), blurRadius = 2f)
-                        )
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "Adjust battle size scale, bots count & match options",
                         color = Color(0xFF64748B),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = if (isLandscape) 9.sp else 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .padding(start = 8.dp)
+                        .size(if (isLandscape) 28.dp else 32.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF1E293B))
                         .clickable { onDismiss() },
@@ -4624,7 +4629,7 @@ fun MatchSettingsDialog(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close Settings",
                         tint = Color(0xFF94A3B8),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(if (isLandscape) 14.dp else 16.dp)
                     )
                 }
             }
@@ -4634,18 +4639,18 @@ fun MatchSettingsDialog(
                 modifier = Modifier
                     .verticalScroll(rememberScrollState())
                     .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(if (isLandscape) 12.dp else 16.dp)
             ) {
                 // Section 1: MATCH SCALE (Snakes count & Map size)
                 Column {
                     Text(
                         text = "MATCH SCALE (SNAKE DENSITY)",
                         color = Color(0xFFE2E8F0),
-                        fontSize = 11.sp,
+                        fontSize = if (isLandscape) 10.sp else 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
 
                     val scaleOptions = listOf(
                         Triple(16, "16 Snakes", "Compact Map"),
@@ -4672,23 +4677,27 @@ fun MatchSettingsDialog(
                                         shape = RoundedCornerShape(12.dp)
                                     )
                                     .clickable { viewModel.maxMatchSnakes.value = count }
-                                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                                    .padding(vertical = if (isLandscape) 8.dp else 12.dp, horizontal = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
                                         text = label,
                                         color = if (isSelected) Color(0xFF00FFCC) else Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontSize = if (isLandscape) 11.sp else 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = desc,
                                         color = Color(0xFF94A3B8),
-                                        fontSize = 8.sp,
+                                        fontSize = if (isLandscape) 8.sp else 9.sp,
                                         fontWeight = FontWeight.Normal,
-                                        textAlign = TextAlign.Center
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -4701,11 +4710,11 @@ fun MatchSettingsDialog(
                     Text(
                         text = "GAME MODE TYPE",
                         color = Color(0xFFE2E8F0),
-                        fontSize = 11.sp,
+                        fontSize = if (isLandscape) 10.sp else 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
                     GameModeRow(
                         selectedMode = selectedMode,
                         onModeSelected = onModeSelected
@@ -4717,11 +4726,11 @@ fun MatchSettingsDialog(
                     Text(
                         text = "ARENA MAP THEMES",
                         color = Color(0xFFE2E8F0),
-                        fontSize = 11.sp,
+                        fontSize = if (isLandscape) 10.sp else 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
                     ArenaThemeRow(
                         selectedTheme = selectedTheme,
                         onThemeSelected = onThemeSelected
@@ -4733,11 +4742,11 @@ fun MatchSettingsDialog(
                     Text(
                         text = "TACTICAL CLASS ABILITY",
                         color = Color(0xFFE2E8F0),
-                        fontSize = 11.sp,
+                        fontSize = if (isLandscape) 10.sp else 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
                     TacticalClassRow(
                         selectedClass = selectedClass,
                         onClassSelected = onClassSelected
@@ -4752,8 +4761,8 @@ fun MatchSettingsDialog(
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color.Black.copy(alpha = 0.3f))
                             .border(1.dp, Color(0xFF0284C7).copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                            .padding(if (isLandscape) 8.dp else 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -4771,7 +4780,7 @@ fun MatchSettingsDialog(
                                 Text(
                                     "MULTIPLAYER PORTAL (Private)",
                                     color = Color(0xFF00FFCC),
-                                    fontSize = 10.sp,
+                                    fontSize = if (isLandscape) 9.sp else 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -4835,7 +4844,14 @@ fun MatchSettingsDialog(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("SAVE", color = Color(0xFF22D3EE), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(
+                        text = "SAVE",
+                        color = Color(0xFF22D3EE),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = if (isLandscape) 12.sp else 13.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
 
                 Button(
@@ -4854,7 +4870,14 @@ fun MatchSettingsDialog(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("BATTLE NOW", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                    Text(
+                        text = "BATTLE NOW",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = if (isLandscape) 12.sp else 13.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
             }
         }
