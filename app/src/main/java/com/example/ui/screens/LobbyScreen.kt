@@ -38,6 +38,14 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.absoluteValue
 import kotlin.random.Random
+// Additional imports for Live Snake Canvas Preview
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.sin
+import kotlin.math.cos
+import kotlin.math.hypot
 
 // Color palette
 val Background = Color(0xFF0B1020)
@@ -239,6 +247,11 @@ fun LobbyScreen(
             // 3. FEATURED EVENT CARD
             item(key = "featured_event") {
                 FeaturedEventCard(onJoinEvent = { /* Join event logic */ })
+            }
+
+            // 3b. LIVE 3D/CANVAS SNAKE PREVIEW PANE
+            item(key = "snake_preview_pane") {
+                LiveSnakePreviewPane()
             }
 
             // 4. GAME MODES
@@ -1912,6 +1925,492 @@ fun MultiplayerLobbyCard(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)
                 ) {
                     Text("Disconnect")
+                }
+            }
+        }
+    }
+}
+
+// ========== Live 3D/Canvas Snake Preview Pane ==========
+
+data class PreviewParticle(
+    var x: Float,
+    var y: Float,
+    var vx: Float,
+    var vy: Float,
+    var color: Color,
+    var life: Float,
+    var size: Float
+)
+
+@Composable
+fun LiveSnakePreviewPane() {
+    var width by remember { mutableStateOf(300f) }
+    var height by remember { mutableStateOf(180f) }
+
+    // Snake parts
+    val snakeSegments = remember { mutableStateListOf<Offset>() }
+    var food by remember { mutableStateOf(Offset(150f, 90f)) }
+    val particles = remember { mutableStateListOf<PreviewParticle>() }
+    var pointsEaten by remember { mutableStateOf(0) }
+    var skinCycle by remember { mutableStateOf(0) } // Cycles skins: Neon Green, Cyber Violet, Meteor Orange
+
+    var targetOverride by remember { mutableStateOf<Offset?>(null) }
+    var frameTick by remember { mutableStateOf(0) }
+
+    // Standard properties for the selected skin
+    val skinColors = listOf(
+        listOf(Color(0xFF00FFCC), Color(0xFF008B8B), Color(0xFFE2FDF5)), // Neon Green/Cyan/Bright Mint
+        listOf(Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFFDE8EF)), // Violet/Pink/White Rose
+        listOf(Color(0xFFFF9800), Color(0xFFFFEB3B), Color(0xFFFFFDE7))  // Orange/Yellow/Warm light
+    )
+    val curSkin = skinColors[skinCycle % skinColors.size]
+
+    // Initialize snake segments if empty
+    LaunchedEffect(width, height) {
+        if (snakeSegments.isEmpty() && width > 0f && height > 0f) {
+            val cx = width / 2
+            val cy = height / 2
+            repeat(12) { i ->
+                snakeSegments.add(Offset(cx - i * 11f, cy))
+            }
+            food = Offset(
+                Random.nextFloat() * (width - 40f) + 20f,
+                Random.nextFloat() * (height - 40f) + 20f
+            )
+        }
+    }
+
+    // Animation Loop
+    LaunchedEffect(Unit) {
+        val random = Random(System.currentTimeMillis())
+        while (true) {
+            delay(16) // ~60fps
+            frameTick++
+
+            if (snakeSegments.isEmpty() || width <= 0f || height <= 0f) continue
+
+            val head = snakeSegments.first()
+            val target = targetOverride ?: food
+
+            // Move head towards target with smooth steering & sine-wave slither
+            val dx = target.x - head.x
+            val dy = target.y - head.y
+            val dist = hypot(dx, dy)
+
+            val speed = 3.8f
+            var vx = 0f
+            var vy = 0f
+
+            if (dist > 2f) {
+                val baseVx = (dx / dist) * speed
+                val baseVy = (dy / dist) * speed
+
+                // Slither movement (add sine-wave fluctuation perpendicular to motion vector)
+                val slitherFreq = 0.22f
+                val slitherAmp = 1.2f
+                val perpX = -baseVy
+                val perpY = baseVx
+                val slitherOffset = sin(frameTick * slitherFreq) * slitherAmp
+
+                vx = baseVx + (perpX / speed) * slitherOffset
+                vy = baseVy + (perpY / speed) * slitherOffset
+            } else {
+                if (targetOverride != null) {
+                    targetOverride = null
+                }
+            }
+
+            // Update Head position
+            val newHead = Offset(
+                (head.x + vx).coerceIn(10f, width - 10f),
+                (head.y + vy).coerceIn(10f, height - 10f)
+            )
+            if (newHead.x == 10f || newHead.x == width - 10f || newHead.y == 10f || newHead.y == height - 10f) {
+                targetOverride = null
+            }
+
+            // Propagate joints with standard distance decay
+            val updatedSegments = ArrayList<Offset>(snakeSegments.size)
+            updatedSegments.add(newHead)
+
+            var prev = newHead
+            val targetDist = 9.5f
+            for (i in 1 until snakeSegments.size) {
+                val curr = snakeSegments[i]
+                val sDx = curr.x - prev.x
+                val sDy = curr.y - prev.y
+                val sDist = hypot(sDx, sDy)
+                if (sDist > targetDist) {
+                    val ratio = targetDist / sDist
+                    updatedSegments.add(Offset(prev.x + sDx * ratio, prev.y + sDy * ratio))
+                } else {
+                    updatedSegments.add(curr)
+                }
+                prev = updatedSegments.last()
+            }
+
+            snakeSegments.clear()
+            snakeSegments.addAll(updatedSegments)
+
+            // Food collision check
+            val fDx = food.x - newHead.x
+            val fDy = food.y - newHead.y
+            val fDist = hypot(fDx, fDy)
+            if (fDist < 15f) {
+                // Burst sparkling particles
+                repeat(18) {
+                    val ang = random.nextFloat() * 2f * Math.PI.toFloat()
+                    val pSpeed = random.nextFloat() * 4.5f + 1.5f
+                    particles.add(
+                        PreviewParticle(
+                            x = food.x,
+                            y = food.y,
+                            vx = cos(ang) * pSpeed,
+                            vy = sin(ang) * pSpeed,
+                            color = curSkin.random(),
+                            life = 1f,
+                            size = random.nextFloat() * 5f + 2f
+                        )
+                    )
+                }
+
+                // Grow snake body segments
+                val tail = snakeSegments.lastOrNull() ?: newHead
+                snakeSegments.add(tail)
+
+                pointsEaten++
+                if (pointsEaten % 3 == 0) {
+                    skinCycle++
+                }
+
+                // Relocate food inside secure padding
+                food = Offset(
+                    random.nextFloat() * (width - 50f) + 25f,
+                    random.nextFloat() * (height - 50f) + 25f
+                )
+            }
+
+            // Update Particle alpha/positions
+            val iterator = particles.listIterator()
+            while (iterator.hasNext()) {
+                val p = iterator.next()
+                p.x += p.vx
+                p.y += p.vy
+                p.vx *= 0.95f
+                p.vy *= 0.95f
+                p.life -= 0.025f
+                if (p.life <= 0f) {
+                    iterator.remove()
+                }
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        border = BorderStroke(1.dp, Color(0xFF1E293B))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF00FFCC))
+                    )
+                    Text(
+                        text = "LIVE SNAKE PREVIEW",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Points eaten counter
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(alpha = 0.4f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "SCORE: $pointsEaten",
+                            color = Color(0xFF00FFCC),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    // Active Cosmetic Badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(curSkin[0].copy(alpha = 0.15f))
+                            .border(1.dp, curSkin[0].copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = when (skinCycle % 3) {
+                                0 -> "NEON VIPER"
+                                1 -> "CYBER GLOW"
+                                else -> "SOLAR FLARE"
+                            },
+                            color = curSkin[0],
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // The Canvas viewport
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black)
+                    .border(1.5.dp, Color(0xFF334155), RoundedCornerShape(16.dp))
+            ) {
+                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                val gridAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.05f,
+                    targetValue = 0.15f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(2000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "gridAlpha"
+                )
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onSizeChanged { size ->
+                            width = size.width.toFloat()
+                            height = size.height.toFloat()
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures { offset ->
+                                targetOverride = offset
+                                // Interactive sparkling burst on tap
+                                repeat(12) {
+                                    val r = Random(System.nanoTime())
+                                    val ang = r.nextFloat() * 2f * Math.PI.toFloat()
+                                    val spd = r.nextFloat() * 4f + 1f
+                                    particles.add(
+                                        PreviewParticle(
+                                            x = offset.x,
+                                            y = offset.y,
+                                            vx = cos(ang) * spd,
+                                            vy = sin(ang) * spd,
+                                            color = curSkin.random(),
+                                            life = 1f,
+                                            size = r.nextFloat() * 4f + 2f
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                ) {
+                    val gridSize = 25f
+
+                    // Draw vertical grid lines
+                    var x = 0f
+                    while (x < size.width) {
+                        drawLine(
+                            color = Color(0xFF334155).copy(alpha = gridAlpha),
+                            start = Offset(x, 0f),
+                            end = Offset(x, size.height),
+                            strokeWidth = 1.0f
+                        )
+                        x += gridSize
+                    }
+
+                    // Draw horizontal grid lines
+                    var y = 0f
+                    while (y < size.height) {
+                        drawLine(
+                            color = Color(0xFF334155).copy(alpha = gridAlpha),
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 1.0f
+                        )
+                        y += gridSize
+                    }
+
+                    // Draw steering target assist reticle
+                    targetOverride?.let { tgt ->
+                        drawCircle(
+                            color = Color(0xFF00FFCC).copy(alpha = 0.25f),
+                            radius = 12f + sin(frameTick * 0.12f).absoluteValue * 3f,
+                            center = tgt,
+                            style = Stroke(width = 1.5f)
+                        )
+                        drawLine(
+                            color = Color(0xFF00FFCC).copy(alpha = 0.15f),
+                            start = Offset(tgt.x, 0f),
+                            end = Offset(tgt.x, size.height),
+                            strokeWidth = 1f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+                        )
+                        drawLine(
+                            color = Color(0xFF00FFCC).copy(alpha = 0.15f),
+                            start = Offset(0f, tgt.y),
+                            end = Offset(size.width, tgt.y),
+                            strokeWidth = 1f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+                        )
+                    }
+
+                    // Drawing Particles
+                    particles.forEach { p ->
+                        drawCircle(
+                            color = p.color.copy(alpha = p.life),
+                            radius = p.size * p.life,
+                            center = Offset(p.x, p.y)
+                        )
+                    }
+
+                    // Goal point (Food Orb)
+                    val pulseScale = 1.0f + sin(frameTick * 0.16f).absoluteValue * 0.2f
+                    val outerGlowSize = 8f * pulseScale
+                    drawCircle(
+                        color = curSkin[0].copy(alpha = 0.15f),
+                        radius = outerGlowSize * 2.2f,
+                        center = food
+                    )
+                    drawCircle(
+                        color = curSkin[0].copy(alpha = 0.4f),
+                        radius = outerGlowSize * 1.5f,
+                        center = food,
+                        style = Stroke(width = 1.5f)
+                    )
+                    drawCircle(
+                        color = curSkin[1],
+                        radius = 4.5f,
+                        center = food
+                    )
+                    drawCircle(
+                        color = Color.White,
+                        radius = 2f,
+                        center = food
+                    )
+
+                    // Draw Snake layers tail -> head
+                    for (i in snakeSegments.indices.reversed()) {
+                        val pos = snakeSegments[i]
+                        val rPercent = 1.0f - (i.toFloat() / snakeSegments.size.toFloat()) * 0.55f
+                        val radius = (7.5f * rPercent).coerceAtLeast(3.0f)
+
+                        // Outer segment ring glow
+                        drawCircle(
+                            color = curSkin[i % curSkin.size].copy(alpha = 0.10f),
+                            radius = radius * 2.5f,
+                            center = pos
+                        )
+
+                        // Main core segment
+                        drawCircle(
+                            color = curSkin[i % curSkin.size],
+                            radius = radius,
+                            center = pos
+                        )
+
+                        // Highlight glossy reflection
+                        if (i == 0) {
+                            drawCircle(
+                                color = Color.White,
+                                radius = radius * 0.4f,
+                                center = Offset(pos.x - radius * 0.2f, pos.y - radius * 0.2f)
+                            )
+                        }
+                    }
+                }
+
+                // Cyber HUD panel indicators
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "PREVIEW_SIM_SYS_v2.0",
+                            color = Color(0xFF64748B),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = if (targetOverride != null) "MODE: USER_MANUAL_STEER" else "MODE: AUTO_HUNTING_AI",
+                            color = if (targetOverride != null) Color(0xFF00FFCC) else Color(0xFF3B82F6),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Column {
+                            Text(
+                                text = "SNAKE_LEN: ${snakeSegments.size}",
+                                color = Color(0xFF64748B),
+                                fontSize = 8.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "SYS_FPS: 60FPS",
+                                color = Color(0xFF64748B),
+                                fontSize = 8.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Text(
+                            text = "TAP TO STEER",
+                            color = Color(0xFF64748B).copy(alpha = 0.8f),
+                            fontSize = 7.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            textAlign = TextAlign.End
+                        )
+                    }
                 }
             }
         }
