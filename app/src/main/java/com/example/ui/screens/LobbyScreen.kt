@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,17 +39,16 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.absoluteValue
+import kotlin.math.hypot
+import kotlin.math.sin
+import kotlin.math.cos
 import kotlin.random.Random
-// Additional imports for Live Snake Canvas Preview
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.drawscope.Stroke
-import kotlin.math.sin
-import kotlin.math.cos
-import kotlin.math.hypot
 
-// Color palette
+// ========== Color Palette ==========
 val Background = Color(0xFF0B1020)
 val Surface = Color(0xFF151C30)
 val Primary = Color(0xFF3B82F6)
@@ -66,6 +64,7 @@ val RareBlue = Color(0xFF00BFFF)
 val EpicPurple = Color(0xFF9C27B0)
 val LegendaryOrange = Color(0xFFFF9800)
 
+// ========== Main Lobby Screen ==========
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LobbyScreen(
@@ -101,7 +100,6 @@ fun LobbyScreen(
         (xp.toFloat() / reqXp.toFloat()).coerceIn(0f, 1f)
     }
 
-    // Mock data for new sections
     var friendsOnline by remember { mutableStateOf(listOf("Alex", "Mehir", "pari", "Kalu", "Jade", "Leo", "Riya")) }
     var dailyRewardDay by remember { mutableStateOf(5) }
     var dailyRewardClaimed by remember { mutableStateOf(false) }
@@ -110,7 +108,6 @@ fun LobbyScreen(
     var pointsEaten by remember { mutableStateOf(0) }
     var skinCycle by remember { mutableStateOf(0) }
 
-    // Simulate player count updates
     LaunchedEffect(Unit) {
         while (true) {
             delay(2000)
@@ -136,13 +133,12 @@ fun LobbyScreen(
         }
     }
 
-    // Countdown for season end (12 days from a fixed date)
     val seasonEndDate = remember { Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 12) }.time }
     var daysLeft by remember { mutableStateOf(12L) }
     LaunchedEffect(seasonEndDate) {
         while (true) {
             daysLeft = ((seasonEndDate.time - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).coerceAtLeast(0)
-            delay(3600000) // update every hour
+            delay(3600000)
         }
     }
 
@@ -156,13 +152,9 @@ fun LobbyScreen(
                 onTabSelected = { tab ->
                     activeTab = tab
                     when (tab) {
-                        "HOME" -> { /* Default active view */ }
-                        "SNAKES" -> {
-                            onNavigateToSkinLocker()
-                        }
-                        "EVENTS" -> {
-                            showMultiplayerSettings = true
-                        }
+                        "HOME" -> { /* Default */ }
+                        "SNAKES" -> onNavigateToSkinLocker()
+                        "EVENTS" -> showMultiplayerSettings = true
                         "LEADERBOARDS" -> onNavigateToLeaderboard()
                         "SHOP" -> onNavigateToShop()
                     }
@@ -178,12 +170,11 @@ fun LobbyScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // 1. DYNAMIC CUSTOM GAME HEADER HUD (Profile, Title, Coins, Gems, Quick Actions)
             GameHeaderHUD(
                 username = userProfile?.username ?: "SNAKE_KING",
                 level = userProfile?.level ?: 24,
                 goldPoints = userProfile?.coins ?: 5400,
-                gemPoints = (userProfile?.coins ?: 5400) / 20 + 120, // Plus bonus gems for the reference style
+                gemPoints = (userProfile?.coins ?: 5400) / 20 + 120,
                 rank = rankTier,
                 xpProgress = xpProgress,
                 onEditNameClick = {
@@ -191,26 +182,19 @@ fun LobbyScreen(
                     showEditNameDialog = true
                 },
                 onSettingsClick = { showMultiplayerSettings = true },
-                onMailClick = {
-                    // Quick simulation: allow user to toggle settings or reset coins
-                    viewModel.earnFreeCoins(500)
-                },
-                onAlertClick = {
-                    // Quick simulation: claim points
-                }
+                onMailClick = { viewModel.earnFreeCoins(500) },
+                onAlertClick = { /* claim points */ }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             if (isLandscape) {
-                // Multi-Column Dashboard layout for Widescreen scales
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Left Column: Social Feed Panel
                     Column(
                         modifier = Modifier
                             .weight(1.1f)
@@ -227,10 +211,7 @@ fun LobbyScreen(
                         MatchHistoryV2(matchRecords = matchRecords)
                     }
 
-                    // Center Column: Live Hexagonal Grid Preview Board with gold crown snake simulation
-                    Column(
-                        modifier = Modifier.weight(1.8f)
-                    ) {
+                    Column(modifier = Modifier.weight(1.8f)) {
                         HexGridLiveSnakePreview(
                             pointsEaten = pointsEaten,
                             onPointsEatenChange = { pointsEaten = it },
@@ -239,7 +220,6 @@ fun LobbyScreen(
                         )
                     }
 
-                    // Right Column: PLAY NOW deck, MULTIPLAYER selectors, and ROYAL PASS track
                     Column(
                         modifier = Modifier
                             .weight(1.1f)
@@ -274,14 +254,11 @@ fun LobbyScreen(
                         )
 
                         RoyalPassCard(
-                            level = ((userProfile?.level ?: 24)),
+                            level = (userProfile?.level ?: 24),
                             xpProgress = xpProgress,
-                            onViewRewardsClick = {
-                                showRoyalPassDialog = true
-                            }
+                            onViewRewardsClick = { showRoyalPassDialog = true }
                         )
 
-                        // Inline Private Room Lobby if chosen
                         if (selectedMode == "Private Room") {
                             SectionTitle("PRIVATE LOBBY PORTAL")
                             Card(
@@ -375,7 +352,6 @@ fun LobbyScreen(
                     }
                 }
             } else {
-                // Adaptive Cascading Scroll Column for portrait smartphone scales
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -383,7 +359,6 @@ fun LobbyScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Center Stage simulation
                     item(key = "hex_grid_preview") {
                         HexGridLiveSnakePreview(
                             pointsEaten = pointsEaten,
@@ -393,7 +368,6 @@ fun LobbyScreen(
                         )
                     }
 
-                    // Main Action Cards
                     item(key = "portrait_play_now") {
                         PlayNowButtonCard(
                             playersCount = playersOnlineCount,
@@ -427,15 +401,12 @@ fun LobbyScreen(
 
                     item(key = "portrait_royal_pass") {
                         RoyalPassCard(
-                            level = ((userProfile?.level ?: 24)),
+                            level = (userProfile?.level ?: 24),
                             xpProgress = xpProgress,
-                            onViewRewardsClick = {
-                                showRoyalPassDialog = true
-                            }
+                            onViewRewardsClick = { showRoyalPassDialog = true }
                         )
                     }
 
-                    // Secondary info cards
                     item(key = "portrait_social_feed") {
                         SocialFeedPanel(
                             friendsOnline = friendsOnline,
@@ -554,7 +525,7 @@ fun LobbyScreen(
         }
     }
 
-    // Dialogs (unchanged)
+    // Dialogs
     if (showEditNameDialog) {
         EditNameDialog(
             currentName = editedName,
@@ -630,7 +601,7 @@ fun LobbyScreen(
     }
 }
 
-// ========== Section Title ==========
+// ========== Helper Components ==========
 @Composable
 fun SectionTitle(title: String) {
     Text(
@@ -643,326 +614,815 @@ fun SectionTitle(title: String) {
     )
 }
 
-// ========== Profile Header V2 ==========
-@Composable
-fun ProfileHeaderV2(
-    userProfile: UserProfile?,
-    rankTier: String,
-    xpProgress: Float,
-    onEditNameClick: () -> Unit
-) {
-    val animatedProgress by animateFloatAsState(targetValue = xpProgress, animationSpec = tween(600), label = "xpProgress")
-    val rankColor = getRankColor(rankTier)
+// ========== Rank Helpers ==========
+fun getRankTier(points: Int): String {
+    return when {
+        points < 1200 -> "Bronze"
+        points < 1400 -> "Silver"
+        points < 1600 -> "Gold"
+        points < 1800 -> "Platinum"
+        points < 2000 -> "Diamond"
+        else -> "Legend"
+    }
+}
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+fun getRankColor(tier: String): Color {
+    return when (tier) {
+        "Bronze" -> Color(0xFFCD7F32)
+        "Silver" -> Color(0xFFC0C0C0)
+        "Gold" -> Color(0xFFFFD700)
+        "Platinum" -> Color(0xFFE5E4E2)
+        "Diamond" -> Color(0xFF33CCFF)
+        else -> Primary
+    }
+}
+
+fun getRankIcon(tier: String): ImageVector {
+    return when (tier) {
+        "Bronze" -> Icons.Default.Terrain
+        "Silver" -> Icons.Default.Shield
+        "Gold" -> Icons.Default.MilitaryTech
+        "Platinum" -> Icons.Default.WorkspacePremium
+        "Diamond" -> Icons.Default.Diamond
+        else -> Icons.Default.Star
+    }
+}
+
+// ========== Header ==========
+@Composable
+fun GameHeaderHUD(
+    username: String,
+    level: Int,
+    goldPoints: Int,
+    gemPoints: Int,
+    rank: String,
+    xpProgress: Float,
+    onEditNameClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onMailClick: () -> Unit,
+    onAlertClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF0F172A).copy(alpha = 0.8f))
+                .border(1.5.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
+                .clickable { onEditNameClick() }
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
-            // Avatar with rank badge
             Box(
-                modifier = Modifier.size(64.dp),
-                contentAlignment = Alignment.BottomEnd
+                modifier = Modifier.size(46.dp),
+                contentAlignment = Alignment.Center
             ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = Color(0xFFFFD700),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .align(Alignment.TopCenter)
+                        .offset(y = (-8).dp)
+                )
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(listOf(Primary, Secondary))
-                        ),
+                        .background(Color(0xFF3B82F6))
+                        .border(1.5.dp, Color(0xFFFFD700), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Person,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-                // Rank badge
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(16.dp)
                         .clip(CircleShape)
-                        .background(rankColor)
-                        .border(2.dp, Background, CircleShape),
+                        .background(Color(0xFFFFD700))
+                        .align(Alignment.BottomEnd),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        getRankIcon(rankTier),
-                        contentDescription = "Rank",
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
+                    Text(
+                        text = "$level",
+                        fontSize = 9.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = userProfile?.username ?: "Player",
-                        color = TextWhite,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    IconButton(onClick = onEditNameClick, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = TextGray, modifier = Modifier.size(16.dp))
-                    }
-                }
+            Column {
                 Text(
-                    text = "$rankTier · Level ${userProfile?.level ?: 1}",
-                    color = rankColor,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
+                    text = username.uppercase(),
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // XP progress
-                Column {
-                    LinearProgressIndicator(
-                        progress = { animatedProgress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = Primary,
-                        trackColor = Color.White.copy(alpha = 0.1f)
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "${userProfile?.xp ?: 0} / ${(userProfile?.level ?: 1) * 1000} XP",
-                        color = TextLight,
-                        fontSize = 11.sp
+                        text = "RANK: ",
+                        color = Color(0xFF64748B),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = rank,
+                        color = Color(0xFFFFC107),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Box(
+                    modifier = Modifier
+                        .width(70.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(Color.White.copy(alpha = 0.1f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(xpProgress)
+                            .background(Color(0xFF00FFCC))
                     )
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.width(16.dp))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = "SNAKE",
+                    color = Color(0xFFFFD700),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.SansSerif,
+                    style = TextStyle(
+                        shadow = Shadow(color = Color(0xFFEA580C), offset = Offset(1.5f, 1.5f), blurRadius = 2f)
+                    )
+                )
+                Text(
+                    text = "LEGENDS",
+                    color = Color(0xFF22D3EE),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.SansSerif,
+                    style = TextStyle(
+                        shadow = Shadow(color = Color(0xFF1D4ED8), offset = Offset(1.5f, 1.5f), blurRadius = 2f)
+                    )
+                )
+            }
+        }
 
-            // Currencies
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = Gold, modifier = Modifier.size(20.dp))
-                    Text(
-                        text = "${userProfile?.coins ?: 0}",
-                        color = TextWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Diamond, contentDescription = null, tint = PremiumGold, modifier = Modifier.size(18.dp))
-                    Text(
-                        text = "${(userProfile?.coins ?: 0) / 20}",
-                        color = TextWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                Icon(
+                    Icons.Default.MonetizationOn,
+                    contentDescription = null,
+                    tint = Color(0xFFFFD700),
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(
+                    text = String.format("%,d", goldPoints),
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = null,
+                    tint = Color(0xFFF472B6),
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(
+                    text = "$gemPoints",
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    Icons.Default.Settings to onSettingsClick,
+                    Icons.Default.Mail to onMailClick,
+                    Icons.Default.Notifications to onAlertClick
+                ).forEach { (icon, clickAction) ->
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF1E293B))
+                            .border(1.dp, Color(0xFF334155), RoundedCornerShape(6.dp))
+                            .clickable { clickAction() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-// ========== Hero Season Banner ==========
+// ========== Social Feed ==========
 @Composable
-fun HeroSeasonBanner(
-    daysLeft: Long,
-    onViewRewards: () -> Unit
+fun SocialFeedPanel(
+    friendsOnline: List<String>,
+    onPartyInvitesClick: () -> Unit,
+    onRecentNewsClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(220.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        border = BorderStroke(1.dp, Color(0xFF1E293B))
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(24.dp))
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF1A237E), Color(0xFF0D47A1), Color(0xFF01579B))
-                    )
-                )
+                .fillMaxWidth()
+                .padding(12.dp)
         ) {
-            // Animated particles (simplified)
-            val infiniteTransition = rememberInfiniteTransition(label = "particles")
-            val p0 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Reverse), label = "p0")
-            val p1 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(3100, easing = LinearEasing), RepeatMode.Reverse), label = "p1")
-            val p2 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing), RepeatMode.Reverse), label = "p2")
-            val p3 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(3500, easing = LinearEasing), RepeatMode.Reverse), label = "p3")
-            val p4 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse), label = "p4")
-            val p5 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2900, easing = LinearEasing), RepeatMode.Reverse), label = "p5")
-            val p6 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(3300, easing = LinearEasing), RepeatMode.Reverse), label = "p6")
-            val p7 = infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Reverse), label = "p7")
-            val particlePositions = listOf(p0, p1, p2, p3, p4, p5, p6, p7)
-
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                particlePositions.forEachIndexed { index, offset ->
-                    val x = size.width * (0.1f + ((index * 0.12f) + offset.value * 0.05f).coerceIn(0f, 1f))
-                    val y = size.height * (0.2f + (index % 3) * 0.25f)
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.3f),
-                        radius = 4f + (index % 3) * 2f,
-                        center = Offset(x, y)
-                    )
-                }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF1E3A8A).copy(alpha = 0.4f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "SOCIAL FEED",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace
+                )
+                Icon(
+                    Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
             }
 
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Friends Online: ${friendsOnline.size}",
+                color = Color(0xFF22C55E),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+            )
+
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Column {
-                    Text(
-                        "SEASON 7",
-                        color = TextWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "CYBER REBIRTH",
-                        color = TextWhite,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Default
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Battle Pass Ends:",
-                        color = TextGray,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        "$daysLeft Days",
-                        color = TextWhite,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF1E293B))
+                        .clickable { onPartyInvitesClick() }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Level 5 / 50",
-                        color = TextWhite,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Button(
-                        onClick = onViewRewards,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Primary,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("VIEW REWARDS", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Group,
+                            contentDescription = null,
+                            tint = Color(0xFF00FFCC),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Party Invites",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
+                    Icon(
+                        Icons.Default.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
-                // Progress bar
-                LinearProgressIndicator(
-                    progress = { 0.1f },
+
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = Secondary,
-                    trackColor = Color.White.copy(alpha = 0.2f)
-                )
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF1E293B))
+                        .clickable { onRecentNewsClick() }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFF00FFCC),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Recent News",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Icon(
+                        Icons.Default.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.2f))
+                        .padding(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFFD700)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column {
+                        Text(text = "Recent News", color = Color(0xFFFFD700), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Friend: ${friendsOnline.getOrNull(0) ?: "Alex"} and ${friendsOnline.getOrNull(1) ?: "Mehir"} just entered a Ranked match!",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 9.sp,
+                            lineHeight = 11.sp
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.2f))
+                        .padding(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF3B82F6)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column {
+                        Text(text = "System Update", color = Color(0xFF3B82F6), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Weekly tournaments are live! Join the Classic Arena event for double XP multipliers!",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 9.sp,
+                            lineHeight = 11.sp
+                        )
+                    }
+                }
             }
         }
     }
 }
 
-// ========== Featured Event Card ==========
+// ========== Play Now Button ==========
 @Composable
-fun FeaturedEventCard(
-    onJoinEvent: () -> Unit
+fun PlayNowButtonCard(
+    playersCount: Int,
+    queueTime: Int,
+    onClick: () -> Unit
 ) {
-    val borderAnimation = rememberInfiniteTransition(label = "border")
-    val borderProgress by borderAnimation.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse),
-        label = "borderAnim"
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scaleAnim by infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.025f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseBtn"
     )
-    val borderColor = lerp(Color(0xFFFFD700), Color(0xFFFFA000), borderProgress)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp)
-            .border(2.dp, borderColor, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A2E)
-        )
+            .scale(scaleAnim)
+            .clickable { onClick() }
+            .shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = Color(0xFFFF9E00), spotColor = Color(0xFFFF9E00)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .background(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF2E1A47), Color(0xFF1A1A2E))
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFFFFEA79), Color(0xFFFF9E00))
                     )
                 )
-                .padding(20.dp)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.EmojiEvents,
-                    contentDescription = null,
-                    tint = Gold,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("FEATURED EVENT", color = TextGray, fontSize = 12.sp, letterSpacing = 1.sp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.25f))
+                        .border(1.5.dp, Color.White, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column {
                     Text(
-                        "Cyber Arena Championship",
-                        color = TextWhite,
+                        text = "PLAY NOW",
+                        color = Color.White,
                         fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.SansSerif,
+                        style = TextStyle(
+                            shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(2f, 2f), blurRadius = 3f)
+                        )
+                    )
+                    Text(
+                        text = "Auto-Queue · Lobby Live ($playersCount players online)",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Prize Pool: 50,000 Coins", color = Gold, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Ends in 2d 14h", color = TextLight, fontSize = 12.sp)
                 }
-                Button(
-                    onClick = onJoinEvent,
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                    shape = RoundedCornerShape(12.dp)
+            }
+
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.2f))
+                    .padding(4.dp)
+            )
+        }
+    }
+}
+
+// ========== Multiplayer Selector ==========
+@Composable
+fun MultiplayerSelectorV2(
+    selectedMode: String,
+    onModeSelected: (String) -> Unit,
+    onSettingsClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.2.dp, Color(0xFF0284C7))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF38BDF8), Color(0xFF0284C7))
+                    )
+                )
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Join Event", color = Color.White, fontWeight = FontWeight.Bold)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy((-6).dp)
+                    ) {
+                        listOf(Color(0xFF00FFCC), Color(0xFFEC4899), Color(0xFFFF9800)).forEach { col ->
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(col)
+                                    .border(1.5.dp, Color.White, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Circle, contentDescription = null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(10.dp))
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "MULTIPLAYER",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.SansSerif,
+                        style = TextStyle(
+                            shadow = Shadow(color = Color.Black.copy(alpha = 0.3f), offset = Offset(1.5f, 1.5f), blurRadius = 2f)
+                        )
+                    )
+                }
+
+                IconButton(onClick = onSettingsClick, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("Classic" to "Casual", "Royale" to "Battle Royale", "Private" to "Private Room").forEach { (label, rawMode) ->
+                    val isActive = selectedMode == rawMode
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isActive) Color.White else Color.Black.copy(alpha = 0.25f))
+                            .clickable { onModeSelected(rawMode) }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (isActive) Color(0xFF0284C7) else Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-// ========== Game Mode Row (redesigned) ==========
+// ========== Royal Pass Card ==========
+@Composable
+fun RoyalPassCard(
+    level: Int,
+    xpProgress: Float,
+    onViewRewardsClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.2.dp, Color(0xFFE2E8F0).copy(alpha = 0.15f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF5B21B6), Color(0xFF311062))
+                    )
+                )
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFFFC107))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(10.dp)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = "ROYAL PASS",
+                            color = Color(0xFFFFD700),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.SansSerif
+                        )
+                        Text(
+                            text = "SEASON 5: SLITHER REIGN",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Level $level",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color.Black.copy(alpha = 0.3f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(xpProgress)
+                        .background(Color(0xFFE0F2FE))
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.Black.copy(alpha = 0.2f))
+                        .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(10.dp))
+                        .padding(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF4C1D95)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFE9D5FF),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Column {
+                        Text(
+                            text = "Snake Skin",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "\"Neon Fury\"",
+                            color = Color(0xFFA5B4FC),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFFFFD700), Color(0xFFD97706))
+                            )
+                        )
+                        .clickable { onViewRewardsClick() }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "View Pass",
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ========== Game Mode Row ==========
 @Composable
 fun GameModeRow(
     selectedMode: String,
@@ -1059,7 +1519,7 @@ fun ModeCardV2(
     }
 }
 
-// ========== Arena Theme Redesign ==========
+// ========== Arena Theme Row ==========
 @Composable
 fun ArenaThemeRow(
     selectedTheme: ArenaTheme,
@@ -1114,10 +1574,9 @@ fun ThemeCardV2(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            // Thumbnail placeholder (could use actual images later)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    Icons.Default.Landscape, // Replace with themed icon
+                    Icons.Default.Landscape,
                     contentDescription = null,
                     tint = if (isSelected) Secondary else TextGray,
                     modifier = Modifier.size(32.dp)
@@ -1140,7 +1599,7 @@ fun ThemeCardV2(
     }
 }
 
-// ========== Tactical Class Redesign ==========
+// ========== Tactical Class Row ==========
 @Composable
 fun TacticalClassRow(
     selectedClass: String,
@@ -1236,7 +1695,6 @@ fun HeroClassCard(
     }
 }
 
-// Extended ClassInfo with cooldown
 data class ClassInfo(
     val id: String,
     val name: String,
@@ -1246,7 +1704,7 @@ data class ClassInfo(
     val cooldown: Int
 )
 
-// ========== Match Scale Selection (16, 50, 100 Snakes) ==========
+// ========== Match Scale Row ==========
 @Composable
 fun MatchScaleRow(
     selectedScale: Int,
@@ -1341,360 +1799,7 @@ fun MatchScaleCardV2(
     }
 }
 
-// ========== Daily Login Reward ==========
-@Composable
-fun DailyLoginReward(
-    day: Int,
-    claimed: Boolean,
-    onClaim: () -> Unit
-) {
-    val chestScale by animateFloatAsState(
-        targetValue = if (!claimed) 1.1f else 1f,
-        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse) ,
-        label = "chestAnim"
-    )
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .scale(chestScale)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(listOf(Gold, PremiumGold))
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.CardGiftcard,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("DAILY REWARD", color = TextGray, fontSize = 12.sp, letterSpacing = 1.sp)
-                Text(
-                    "Day $day",
-                    color = TextWhite,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Reward: 300 Coins",
-                    color = Gold,
-                    fontSize = 14.sp
-                )
-            }
-            Button(
-                onClick = onClaim,
-                enabled = !claimed,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (claimed) TextLight else Primary,
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(if (claimed) "CLAIMED" else "CLAIM", fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-// ========== Friends Online Widget ==========
-@Composable
-fun FriendsOnlineWidget(
-    friends: List<String>,
-    onInvite: (String) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "ONLINE FRIENDS",
-                    color = TextGray,
-                    fontSize = 12.sp,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    "${friends.size} Online",
-                    color = Success,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                friends.take(4).forEach { friend ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(Secondary.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Person, null, tint = Secondary, modifier = Modifier.size(28.dp))
-                        }
-                        Text(friend, color = TextWhite, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Button(
-                    onClick = { onInvite(friends.firstOrNull() ?: "") },
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.height(40.dp)
-                ) {
-                    Text("Invite", fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-// ========== Battle Pass V2 ==========
-@Composable
-fun BattlePassV2(
-    bpLevel: Int,
-    onClaimReward: (Int, String) -> Unit
-) {
-    // Simplified reward tiers with free/premium tracks
-    val tiers = listOf(
-        "200 Coins" to false, // free
-        "Glow Cyber (Skin)" to true, // premium
-        "600 Coins" to false,
-        "Space Wraith (Skin)" to true,
-        "Meteor Trail" to true
-    )
-    val claimedStates = remember { mutableStateListOf(*Array(tiers.size) { false }) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "BATTLE PASS · Season 7",
-                color = TextWhite,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            // Progression line
-            LinearProgressIndicator(
-                progress = { (bpLevel.toFloat() / tiers.size.toFloat()).coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp)),
-                color = Secondary,
-                trackColor = Color.White.copy(alpha = 0.1f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(tiers.size) { index ->
-                    val (reward, isPremium) = tiers[index]
-                    val unlocked = bpLevel > index
-                    val claimed = claimedStates[index]
-                    TierCardV2(
-                        reward = reward,
-                        isPremium = isPremium,
-                        unlocked = unlocked,
-                        claimed = claimed,
-                        onClaim = {
-                            if (unlocked && !claimed) {
-                                onClaimReward(index + 1, reward) // tierNum 1-based
-                                claimedStates[index] = true
-                            }
-                        },
-                        modifier = Modifier.width(120.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TierCardV2(
-    reward: String,
-    isPremium: Boolean,
-    unlocked: Boolean,
-    claimed: Boolean,
-    onClaim: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val borderColor = when {
-        claimed -> Success
-        isPremium -> PremiumGold
-        else -> if (unlocked) Primary else TextLight
-    }
-    Card(
-        modifier = modifier
-            .height(140.dp)
-            .clickable(enabled = unlocked && !claimed, onClick = onClaim),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (unlocked && !claimed) Primary.copy(alpha = 0.1f) else Surface
-        ),
-        border = BorderStroke(1.5.dp, borderColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                if (claimed) Icons.Default.CheckCircle
-                else if (unlocked) Icons.Default.LockOpen
-                else Icons.Default.Lock,
-                contentDescription = null,
-                tint = borderColor,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                reward,
-                color = if (claimed) TextGray else TextWhite,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            if (isPremium) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Icon(
-                    Icons.Default.Diamond,
-                    contentDescription = "Premium",
-                    tint = PremiumGold,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text("PREMIUM", color = PremiumGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-            if (unlocked && !claimed) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("CLAIM", color = Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-// ========== Social Redesign (rows of cards) ==========
-@Composable
-fun SocialRedesign(
-    onShop: () -> Unit,
-    onClan: () -> Unit,
-    onLeaderboard: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(modifier = Modifier.weight(1f)) {
-                SocialPremiumCard(
-                    icon = Icons.Default.Store,
-                    title = "Shop",
-                    subtitle = "Gear Up",
-                    onClick = onShop
-                )
-            }
-            Box(modifier = Modifier.weight(1f)) {
-                SocialPremiumCard(
-                    icon = Icons.Default.Groups,
-                    title = "Clan",
-                    subtitle = "2 Online",
-                    onClick = onClan
-                )
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(modifier = Modifier.weight(1f)) {
-                SocialPremiumCard(
-                    icon = Icons.Default.Leaderboard,
-                    title = "Leaderboard",
-                    subtitle = "Top 100",
-                    onClick = onLeaderboard
-                )
-            }
-            Box(modifier = Modifier.weight(1f)) {
-                SocialPremiumCard(
-                    icon = Icons.Default.CardGiftcard,
-                    title = "Rewards",
-                    subtitle = "5 New",
-                    onClick = { /* Rewards screen */ }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun SocialPremiumCard(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(110.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, contentDescription = null, tint = Primary, modifier = Modifier.size(32.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(title, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = TextGray, fontSize = 12.sp)
-        }
-    }
-}
-
-// ========== Match History V2 ==========
+// ========== Match History ==========
 @Composable
 fun MatchHistoryV2(matchRecords: List<MatchRecord>) {
     if (matchRecords.isEmpty()) {
@@ -1728,7 +1833,7 @@ fun MatchCardV2(record: MatchRecord) {
     val dateStr = remember {
         SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(record.timestamp))
     }
-    val won = record.score > 0 // example logic
+    val won = record.score > 0
     val backgroundColor = if (won) Success.copy(alpha = 0.05f) else Danger.copy(alpha = 0.05f)
 
     Card(
@@ -1775,859 +1880,7 @@ fun MatchCardV2(record: MatchRecord) {
     }
 }
 
-// ========== Private Room Quick Card (same as original, minor tweaks) ==========
-@Composable
-fun PrivateRoomQuickCard(
-    privateRoomCode: String,
-    mpStatus: ConnectionStatus,
-    onOpenRoom: () -> Unit,
-    onGenerateCode: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text("Private Room", color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    if (privateRoomCode.isNotBlank()) "Code: $privateRoomCode" else "No code generated",
-                    color = TextGray,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = "Status: ${mpStatus.name}",
-                    color = if (mpStatus == ConnectionStatus.CONNECTED) Success else TextLight,
-                    fontSize = 12.sp
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Button(onClick = onOpenRoom, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
-                    Text("Lobby", color = Color.White)
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = onGenerateCode,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Secondary),
-                    border = BorderStroke(1.dp, Secondary)
-                ) {
-                    Text("Generate Code")
-                }
-            }
-        }
-    }
-}
-
-// ========== Mission List (redesigned card style) ==========
-@Composable
-fun MissionList(title: String, missions: List<Pair<String, Boolean>>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(12.dp))
-            missions.forEach { (desc, done) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        desc,
-                        color = if (done) TextGray else TextWhite,
-                        fontSize = 14.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(
-                        if (done) Icons.Default.CheckCircle else Icons.Default.Circle,
-                        contentDescription = null,
-                        tint = if (done) Success else TextLight,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ========== Private Room Dialog (unchanged logic, updated styling) ==========
-@Composable
-fun PrivateRoomDialog(
-    initialCode: String,
-    mpManager: MultiplayerManager,
-    mpStatus: ConnectionStatus,
-    userProfile: UserProfile?,
-    onCodeChange: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var roomCode by remember { mutableStateOf(initialCode) }
-    var chatText by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Surface,
-        shape = RoundedCornerShape(24.dp),
-        title = {
-            Text("Private Room Lobby", color = TextWhite, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
-                    value = roomCode,
-                    onValueChange = {
-                        roomCode = it.take(10).uppercase()
-                        onCodeChange(roomCode)
-                    },
-                    label = { Text("Room Code") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = Primary,
-                        focusedLabelColor = Primary
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-                MultiplayerLobbyCard(
-                    mpStatus = mpStatus,
-                    mpManager = mpManager,
-                    userProfile = userProfile,
-                    privateRoomCode = roomCode,
-                    chatTextInput = chatText,
-                    onChatTextChange = { chatText = it },
-                    onSendMessage = {
-                        if (chatText.isNotBlank()) {
-                            mpManager.broadcastChatMessage(chatText)
-                            chatText = ""
-                        }
-                    }
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close", color = TextGray)
-            }
-        }
-    )
-}
-
-// ========== Multiplayer Settings Sheet (Upgraded Arcade Settings Dashboard) ==========
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun MultiplayerSettingsSheet(
-    mpManager: MultiplayerManager,
-    onDismiss: () -> Unit
-) {
-    var selectedSettingsTab by remember { mutableStateOf("NETWORK") }
-
-    // Simulation states for controls & aesthetic parameters
-    var controlScheme by remember { mutableStateOf("Joystick") } // "Joystick", "Swipe", "D-Pad"
-    var joystickSensitivity by remember { mutableStateOf(1.2f) }
-    var matchHaptics by remember { mutableStateOf(true) }
-    var soundMusicVolume by remember { mutableStateOf(0.75f) }
-    var soundSfxVolume by remember { mutableStateOf(0.85f) }
-    var renderQualityMode by remember { mutableStateOf("Turbo (120FPS)") } // "Eco (30FPS)", "Pro (60FPS)", "Turbo (120FPS)"
-    var customParticleMultiplier by remember { mutableStateOf(0.8f) }
-    var interfaceThemeMode by remember { mutableStateOf("Neo Cyber") }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 12.dp)
-                    .width(44.dp)
-                    .height(4.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF334155))
-            )
-        }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(start = 24.dp, end = 24.dp, bottom = 40.dp)
-        ) {
-            // Header HUD Title Section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "ARCADE SYSTEM CONFIG",
-                        color = Color(0xFF22D3EE),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.Monospace,
-                        style = androidx.compose.ui.text.TextStyle(
-                            shadow = Shadow(color = Color(0xFF1D4ED8), offset = Offset(1f, 1f), blurRadius = 2f)
-                        )
-                    )
-                    Text(
-                        text = "Optimize matchmaking feeds, input layout & sensory styling",
-                        color = Color(0xFF64748B),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF1E293B))
-                        .clickable { onDismiss() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close Settings",
-                        tint = Color(0xFF94A3B8),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Sub-systems navigation bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf(
-                    "NETWORK" to "Online",
-                    "CONTROLS" to "Input",
-                    "AESTHETICS" to "Sensory"
-                ).forEach { (tabId, label) ->
-                    val isTabActive = selectedSettingsTab == tabId
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (isTabActive) Color(0xFF1E3A8A).copy(alpha = 0.6f) else Color.Transparent
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = if (isTabActive) Color(0xFF3B82F6).copy(alpha = 0.5f) else Color.Transparent,
-                                shape = RoundedCornerShape(10.dp)
-                            )
-                            .clickable { selectedSettingsTab = tabId }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label.uppercase(),
-                            color = if (isTabActive) Color(0xFF00FFCC) else Color(0xFF64748B),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Tab content block
-            when (selectedSettingsTab) {
-                "NETWORK" -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = null,
-                                tint = Color(0xFF00FFCC),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "MULTIPLAYER MATCHMAKING CORES",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Black,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-
-                        // Region
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Global Server Zone", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        "Estimated latency: ${
-                                            when(mpManager.selectedRegion.regionName) {
-                                                "US East" -> "~18ms (Optimal)"
-                                                "EU West" -> "~74ms"
-                                                "Asia Pac" -> "~138ms"
-                                                else -> "~112ms"
-                                            }
-                                        }", 
-                                        color = Color(0xFF22C55E), 
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFF1E293B))
-                                        .border(1.dp, Color(0xFF334155), RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            val regions = ServerRegion.values()
-                                            val next = (mpManager.selectedRegion.ordinal + 1) % regions.size
-                                            mpManager.selectedRegion = regions[next]
-                                        }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                ) {
-                                    Text(
-                                        text = mpManager.selectedRegion.regionName.uppercase(),
-                                        color = Color(0xFF22D3EE),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Black,
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                }
-                            }
-                        }
-
-                        // Lag Compensation
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1.5f)) {
-                                    Text("Delay Wave Compensation", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    Text("Interpolates remote peer positions dynamically to prevent game jitter", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
-                                }
-                                Switch(
-                                    checked = mpManager.isLagCompensationEnabled,
-                                    onCheckedChange = { mpManager.isLagCompensationEnabled = it },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color(0xFF00FFCC),
-                                        checkedTrackColor = Color(0xFF00FFCC).copy(alpha = 0.3f),
-                                        uncheckedThumbColor = Color(0xFF475569),
-                                        uncheckedTrackColor = Color(0xFF1E293B)
-                                    )
-                                )
-                            }
-                        }
-
-                        // Tick Rate
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Text("Engine Simulation Frequency", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text("Higher frequencies yield accurate snake tracking but increase bandwidth usage", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(20, 30, 60).forEach { rate ->
-                                    val isActive = mpManager.tickRateHz == rate
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isActive) Color(0xFF1E3A8A).copy(alpha = 0.8f) else Color(0xFF1E293B))
-                                            .border(
-                                                width = 1.2.dp,
-                                                color = if (isActive) Color(0xFF3B82F6) else Color.Transparent,
-                                                shape = RoundedCornerShape(8.dp)
-                                            )
-                                            .clickable { mpManager.tickRateHz = rate }
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "${rate} HZ",
-                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Black,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                "CONTROLS" -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = null,
-                                tint = Color(0xFFFF9E00),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "TACTILE TENSE SCHEMES",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Black,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-
-                        // Controller layout select
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Text("Tactile Action Layout", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text("Choose your preferred slither handling input layout", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf("Joystick", "Swipe", "D-Pad").forEach { mode ->
-                                    val isActive = controlScheme == mode
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isActive) Color(0xFF7C2D12).copy(alpha = 0.5f) else Color(0xFF1E293B))
-                                            .border(
-                                                width = 1.2.dp,
-                                                color = if (isActive) Color(0xFFEA580C) else Color.Transparent,
-                                                shape = RoundedCornerShape(8.dp)
-                                            )
-                                            .clickable { controlScheme = mode }
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = mode.uppercase(),
-                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Black,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Sensitivity
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Steering Sensitivity", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                Text(
-                                    text = String.format("%.1fx", joystickSensitivity),
-                                    color = Color(0xFFFF9E00),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
-                            Text("Adjusts input response acceleration when making fast coils", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Slider(
-                                value = joystickSensitivity,
-                                onValueChange = { joystickSensitivity = it },
-                                valueRange = 0.5f..2.0f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFFFF9E00),
-                                    activeTrackColor = Color(0xFFFF9E00),
-                                    inactiveTrackColor = Color(0xFF1E293B)
-                                )
-                            )
-                        }
-
-                        // Toggle Haptics
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1.5f)) {
-                                    Text("Rumble Haptic Resonance", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    Text("Fires tactile feedback rumbles upon feeding or hitting walls", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
-                                }
-                                Switch(
-                                    checked = matchHaptics,
-                                    onCheckedChange = { matchHaptics = it },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color(0xFFFF9E00),
-                                        checkedTrackColor = Color(0xFFFF9E00).copy(alpha = 0.3f),
-                                        uncheckedThumbColor = Color(0xFF475569),
-                                        uncheckedTrackColor = Color(0xFF1E293B)
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                "AESTHETICS" -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color(0xFFEC4899),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "GRAPHICAL & SONIC RENDERING",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Black,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-
-                        // Music and sound FX sliders
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Synth Background Music (BGM)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                Text(
-                                    text = "${(soundMusicVolume * 100).toInt()}%",
-                                    color = Color(0xFFEC4899),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Slider(
-                                value = soundMusicVolume,
-                                onValueChange = { soundMusicVolume = it },
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFFEC4899),
-                                    activeTrackColor = Color(0xFFEC4899),
-                                    inactiveTrackColor = Color(0xFF1E293B)
-                                )
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Arcade Feed Sound Effects (SFX)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                Text(
-                                    text = "${(soundSfxVolume * 100).toInt()}%",
-                                    color = Color(0xFFEC4899),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Slider(
-                                value = soundSfxVolume,
-                                onValueChange = { soundSfxVolume = it },
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFFEC4899),
-                                    activeTrackColor = Color(0xFFEC4899),
-                                    inactiveTrackColor = Color(0xFF1E293B)
-                                )
-                            )
-                        }
-
-                        // Visual performance caps
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Text("Sensory Frame-Rate Limit", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text("Smoother frame updates require active screen-reign graphics adapters", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf("Eco (30FPS)", "Pro (60FPS)", "Turbo (120FPS)").forEach { qOpt ->
-                                    val isActive = renderQualityMode == qOpt
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1.1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isActive) Color(0xFF4C1D95).copy(alpha = 0.5f) else Color(0xFF1E293B))
-                                            .border(
-                                                width = 1.2.dp,
-                                                color = if (isActive) Color(0xFFA78BFA) else Color.Transparent,
-                                                shape = RoundedCornerShape(8.dp)
-                                            )
-                                            .clickable { renderQualityMode = qOpt }
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = qOpt.uppercase(),
-                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Black,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Color theme modes
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF070B13))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                        ) {
-                            Text("Aesthetic Color Theme", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf("Neo Cyber", "Prismatic", "Solar Flare").forEach { thm ->
-                                    val isActive = interfaceThemeMode == thm
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isActive) Color(0xFF831843).copy(alpha = 0.5f) else Color(0xFF1E293B))
-                                            .border(
-                                                width = 1.2.dp,
-                                                color = if (isActive) Color(0xFFF43F5E) else Color.Transparent,
-                                                shape = RoundedCornerShape(8.dp)
-                                            )
-                                            .clickable { interfaceThemeMode = thm }
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = thm.uppercase(),
-                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Black,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            // Action Apply Footer
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "APPLY CONFIGURATION",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ========== Edit Name Dialog (unchanged) ==========
-@Composable
-fun EditNameDialog(
-    currentName: String,
-    onNameChange: (String) -> Unit,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Surface,
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Change Username", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text(
-                    "Enter a new display name (max 15 characters)",
-                    color = TextGray,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = currentName,
-                    onValueChange = { onNameChange(it.take(15)) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = Primary
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("edit_username_input"),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
-                Text("Save", color = Color.White)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = TextGray)
-            }
-        }
-    )
-}
-
-// ========== Rank Helpers (unchanged) ==========
-fun getRankTier(points: Int): String {
-    return when {
-        points < 1200 -> "Bronze"
-        points < 1400 -> "Silver"
-        points < 1600 -> "Gold"
-        points < 1800 -> "Platinum"
-        points < 2000 -> "Diamond"
-        else -> "Legend"
-    }
-}
-
-fun getRankColor(tier: String): Color {
-    return when (tier) {
-        "Bronze" -> Color(0xFFCD7F32)
-        "Silver" -> Color(0xFFC0C0C0)
-        "Gold" -> Color(0xFFFFD700)
-        "Platinum" -> Color(0xFFE5E4E2)
-        "Diamond" -> Color(0xFF33CCFF)
-        else -> Primary
-    }
-}
-
-fun getRankIcon(tier: String): ImageVector {
-    return when (tier) {
-        "Bronze" -> Icons.Default.Terrain
-        "Silver" -> Icons.Default.Shield
-        "Gold" -> Icons.Default.MilitaryTech
-        "Platinum" -> Icons.Default.WorkspacePremium
-        "Diamond" -> Icons.Default.Diamond
-        else -> Icons.Default.Star
-    }
-}
-
-// ========== Multiplayer Lobby Card (from original) ==========
+// ========== Multiplayer Lobby Card ==========
 @Composable
 fun MultiplayerLobbyCard(
     mpStatus: ConnectionStatus,
@@ -2689,7 +1942,6 @@ fun MultiplayerLobbyCard(
                 }
             }
             ConnectionStatus.CONNECTED -> {
-                // This now works perfectly because participants is a unwrapped List
                 Text("Participants (${participants.size})", color = TextGray, fontSize = 12.sp)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(participants) { user ->
@@ -2705,8 +1957,7 @@ fun MultiplayerLobbyCard(
                         }
                     }
                 }
-                
-                // Chat Section
+
                 Column {
                     Box(
                         modifier = Modifier
@@ -2766,8 +2017,7 @@ fun MultiplayerLobbyCard(
     }
 }
 
-// ========== Live 3D/Canvas Snake Preview Pane ==========
-
+// ========== Live Snake Preview (Hex Grid) ==========
 data class PreviewParticle(
     var x: Float,
     var y: Float,
@@ -2777,1331 +2027,6 @@ data class PreviewParticle(
     var life: Float,
     var size: Float
 )
-
-@Composable
-fun LiveSnakePreviewPane() {
-    var width by remember { mutableStateOf(300f) }
-    var height by remember { mutableStateOf(180f) }
-
-    // Snake parts
-    val snakeSegments = remember { mutableStateListOf<Offset>() }
-    var food by remember { mutableStateOf(Offset(150f, 90f)) }
-    val particles = remember { mutableStateListOf<PreviewParticle>() }
-    var pointsEaten by remember { mutableStateOf(0) }
-    var skinCycle by remember { mutableStateOf(0) } // Cycles skins: Neon Green, Cyber Violet, Meteor Orange
-
-    var targetOverride by remember { mutableStateOf<Offset?>(null) }
-    var frameTick by remember { mutableStateOf(0) }
-
-    // Standard properties for the selected skin
-    val skinColors = listOf(
-        listOf(Color(0xFF00FFCC), Color(0xFF008B8B), Color(0xFFE2FDF5)), // Neon Green/Cyan/Bright Mint
-        listOf(Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFFDE8EF)), // Violet/Pink/White Rose
-        listOf(Color(0xFFFF9800), Color(0xFFFFEB3B), Color(0xFFFFFDE7))  // Orange/Yellow/Warm light
-    )
-    val curSkin = skinColors[skinCycle % skinColors.size]
-
-    // Initialize snake segments if empty
-    LaunchedEffect(width, height) {
-        if (snakeSegments.isEmpty() && width > 0f && height > 0f) {
-            val cx = width / 2
-            val cy = height / 2
-            repeat(12) { i ->
-                snakeSegments.add(Offset(cx - i * 11f, cy))
-            }
-            food = Offset(
-                Random.nextFloat() * (width - 40f) + 20f,
-                Random.nextFloat() * (height - 40f) + 20f
-            )
-        }
-    }
-
-    // Animation Loop
-    LaunchedEffect(Unit) {
-        val random = Random(System.currentTimeMillis())
-        while (true) {
-            delay(16) // ~60fps
-            frameTick++
-
-            if (snakeSegments.isEmpty() || width <= 0f || height <= 0f) continue
-
-            val head = snakeSegments.first()
-            val target = targetOverride ?: food
-
-            // Move head towards target with smooth steering & sine-wave slither
-            val dx = target.x - head.x
-            val dy = target.y - head.y
-            val dist = hypot(dx, dy)
-
-            val speed = 3.8f
-            var vx = 0f
-            var vy = 0f
-
-            if (dist > 2f) {
-                val baseVx = (dx / dist) * speed
-                val baseVy = (dy / dist) * speed
-
-                // Slither movement (add sine-wave fluctuation perpendicular to motion vector)
-                val slitherFreq = 0.22f
-                val slitherAmp = 1.2f
-                val perpX = -baseVy
-                val perpY = baseVx
-                val slitherOffset = sin(frameTick * slitherFreq) * slitherAmp
-
-                vx = baseVx + (perpX / speed) * slitherOffset
-                vy = baseVy + (perpY / speed) * slitherOffset
-            } else {
-                if (targetOverride != null) {
-                    targetOverride = null
-                }
-            }
-
-            // Update Head position
-            val newHead = Offset(
-                (head.x + vx).coerceIn(10f, width - 10f),
-                (head.y + vy).coerceIn(10f, height - 10f)
-            )
-            if (newHead.x == 10f || newHead.x == width - 10f || newHead.y == 10f || newHead.y == height - 10f) {
-                targetOverride = null
-            }
-
-            // Propagate joints with standard distance decay
-            val updatedSegments = ArrayList<Offset>(snakeSegments.size)
-            updatedSegments.add(newHead)
-
-            var prev = newHead
-            val targetDist = 9.5f
-            for (i in 1 until snakeSegments.size) {
-                val curr = snakeSegments[i]
-                val sDx = curr.x - prev.x
-                val sDy = curr.y - prev.y
-                val sDist = hypot(sDx, sDy)
-                if (sDist > targetDist) {
-                    val ratio = targetDist / sDist
-                    updatedSegments.add(Offset(prev.x + sDx * ratio, prev.y + sDy * ratio))
-                } else {
-                    updatedSegments.add(curr)
-                }
-                prev = updatedSegments.last()
-            }
-
-            snakeSegments.clear()
-            snakeSegments.addAll(updatedSegments)
-
-            // Food collision check
-            val fDx = food.x - newHead.x
-            val fDy = food.y - newHead.y
-            val fDist = hypot(fDx, fDy)
-            if (fDist < 15f) {
-                // Burst sparkling particles
-                repeat(18) {
-                    val ang = random.nextFloat() * 2f * Math.PI.toFloat()
-                    val pSpeed = random.nextFloat() * 4.5f + 1.5f
-                    particles.add(
-                        PreviewParticle(
-                            x = food.x,
-                            y = food.y,
-                            vx = cos(ang) * pSpeed,
-                            vy = sin(ang) * pSpeed,
-                            color = curSkin.random(),
-                            life = 1f,
-                            size = random.nextFloat() * 5f + 2f
-                        )
-                    )
-                }
-
-                // Grow snake body segments
-                val tail = snakeSegments.lastOrNull() ?: newHead
-                snakeSegments.add(tail)
-
-                pointsEaten++
-                if (pointsEaten % 3 == 0) {
-                    skinCycle++
-                }
-
-                // Relocate food inside secure padding
-                food = Offset(
-                    random.nextFloat() * (width - 50f) + 25f,
-                    random.nextFloat() * (height - 50f) + 25f
-                )
-            }
-
-            // Update Particle alpha/positions
-            val iterator = particles.listIterator()
-            while (iterator.hasNext()) {
-                val p = iterator.next()
-                p.x += p.vx
-                p.y += p.vy
-                p.vx *= 0.95f
-                p.vy *= 0.95f
-                p.life -= 0.025f
-                if (p.life <= 0f) {
-                    iterator.remove()
-                }
-            }
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            // Header Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF00FFCC))
-                    )
-                    Text(
-                        text = "LIVE SNAKE PREVIEW",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp
-                    )
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Points eaten counter
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.4f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "SCORE: $pointsEaten",
-                            color = Color(0xFF00FFCC),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-
-                    // Active Cosmetic Badge
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(curSkin[0].copy(alpha = 0.15f))
-                            .border(1.dp, curSkin[0].copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = when (skinCycle % 3) {
-                                0 -> "NEON VIPER"
-                                1 -> "CYBER GLOW"
-                                else -> "SOLAR FLARE"
-                            },
-                            color = curSkin[0],
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // The Canvas viewport
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black)
-                    .border(1.5.dp, Color(0xFF334155), RoundedCornerShape(16.dp))
-            ) {
-                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-                val gridAlpha by infiniteTransition.animateFloat(
-                    initialValue = 0.05f,
-                    targetValue = 0.15f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(2000, easing = LinearEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "gridAlpha"
-                )
-
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .onSizeChanged { size ->
-                            width = size.width.toFloat()
-                            height = size.height.toFloat()
-                        }
-                        .pointerInput(Unit) {
-                            detectTapGestures { offset ->
-                                targetOverride = offset
-                                // Interactive sparkling burst on tap
-                                repeat(12) {
-                                    val r = Random(System.nanoTime())
-                                    val ang = r.nextFloat() * 2f * Math.PI.toFloat()
-                                    val spd = r.nextFloat() * 4f + 1f
-                                    particles.add(
-                                        PreviewParticle(
-                                            x = offset.x,
-                                            y = offset.y,
-                                            vx = cos(ang) * spd,
-                                            vy = sin(ang) * spd,
-                                            color = curSkin.random(),
-                                            life = 1f,
-                                            size = r.nextFloat() * 4f + 2f
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                ) {
-                    val gridSize = 25f
-
-                    // Draw vertical grid lines
-                    var x = 0f
-                    while (x < size.width) {
-                        drawLine(
-                            color = Color(0xFF334155).copy(alpha = gridAlpha),
-                            start = Offset(x, 0f),
-                            end = Offset(x, size.height),
-                            strokeWidth = 1.0f
-                        )
-                        x += gridSize
-                    }
-
-                    // Draw horizontal grid lines
-                    var y = 0f
-                    while (y < size.height) {
-                        drawLine(
-                            color = Color(0xFF334155).copy(alpha = gridAlpha),
-                            start = Offset(0f, y),
-                            end = Offset(size.width, y),
-                            strokeWidth = 1.0f
-                        )
-                        y += gridSize
-                    }
-
-                    // Draw steering target assist reticle
-                    targetOverride?.let { tgt ->
-                        drawCircle(
-                            color = Color(0xFF00FFCC).copy(alpha = 0.25f),
-                            radius = 12f + sin(frameTick * 0.12f).absoluteValue * 3f,
-                            center = tgt,
-                            style = Stroke(width = 1.5f)
-                        )
-                        drawLine(
-                            color = Color(0xFF00FFCC).copy(alpha = 0.15f),
-                            start = Offset(tgt.x, 0f),
-                            end = Offset(tgt.x, size.height),
-                            strokeWidth = 1f,
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
-                        )
-                        drawLine(
-                            color = Color(0xFF00FFCC).copy(alpha = 0.15f),
-                            start = Offset(0f, tgt.y),
-                            end = Offset(size.width, tgt.y),
-                            strokeWidth = 1f,
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
-                        )
-                    }
-
-                    // Drawing Particles
-                    particles.forEach { p ->
-                        drawCircle(
-                            color = p.color.copy(alpha = p.life),
-                            radius = p.size * p.life,
-                            center = Offset(p.x, p.y)
-                        )
-                    }
-
-                    // Goal point (Food Orb)
-                    val pulseScale = 1.0f + sin(frameTick * 0.16f).absoluteValue * 0.2f
-                    val outerGlowSize = 8f * pulseScale
-                    drawCircle(
-                        color = curSkin[0].copy(alpha = 0.15f),
-                        radius = outerGlowSize * 2.2f,
-                        center = food
-                    )
-                    drawCircle(
-                        color = curSkin[0].copy(alpha = 0.4f),
-                        radius = outerGlowSize * 1.5f,
-                        center = food,
-                        style = Stroke(width = 1.5f)
-                    )
-                    drawCircle(
-                        color = curSkin[1],
-                        radius = 4.5f,
-                        center = food
-                    )
-                    drawCircle(
-                        color = Color.White,
-                        radius = 2f,
-                        center = food
-                    )
-
-                    // Draw Snake layers tail -> head
-                    for (i in snakeSegments.indices.reversed()) {
-                        val pos = snakeSegments[i]
-                        val rPercent = 1.0f - (i.toFloat() / snakeSegments.size.toFloat()) * 0.55f
-                        val radius = (7.5f * rPercent).coerceAtLeast(3.0f)
-
-                        // Outer segment ring glow
-                        drawCircle(
-                            color = curSkin[i % curSkin.size].copy(alpha = 0.10f),
-                            radius = radius * 2.5f,
-                            center = pos
-                        )
-
-                        // Main core segment
-                        drawCircle(
-                            color = curSkin[i % curSkin.size],
-                            radius = radius,
-                            center = pos
-                        )
-
-                        // Highlight glossy reflection
-                        if (i == 0) {
-                            drawCircle(
-                                color = Color.White,
-                                radius = radius * 0.4f,
-                                center = Offset(pos.x - radius * 0.2f, pos.y - radius * 0.2f)
-                            )
-                        }
-                    }
-                }
-
-                // Cyber HUD panel indicators
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(10.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "PREVIEW_SIM_SYS_v2.0",
-                            color = Color(0xFF64748B),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Text(
-                            text = if (targetOverride != null) "MODE: USER_MANUAL_STEER" else "MODE: AUTO_HUNTING_AI",
-                            color = if (targetOverride != null) Color(0xFF00FFCC) else Color(0xFF3B82F6),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Column {
-                            Text(
-                                text = "SNAKE_LEN: ${snakeSegments.size}",
-                                color = Color(0xFF64748B),
-                                fontSize = 8.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            Text(
-                                text = "SYS_FPS: 60FPS",
-                                color = Color(0xFF64748B),
-                                fontSize = 8.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                        Text(
-                            text = "TAP TO STEER",
-                            color = Color(0xFF64748B).copy(alpha = 0.8f),
-                            fontSize = 7.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            textAlign = TextAlign.End
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ========== Custom Arcade Helper Components ==========
-
-@Composable
-fun GameHeaderHUD(
-    username: String,
-    level: Int,
-    goldPoints: Int,
-    gemPoints: Int,
-    rank: String,
-    xpProgress: Float,
-    onEditNameClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-    onMailClick: () -> Unit,
-    onAlertClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Left Profile Card
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF0F172A).copy(alpha = 0.8f))
-                .border(1.5.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
-                .clickable { onEditNameClick() }
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-        ) {
-            Box(
-                modifier = Modifier.size(46.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                // Crown Icon above avatar
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = null,
-                    tint = Color(0xFFFFD700),
-                    modifier = Modifier
-                        .size(18.dp)
-                        .align(Alignment.TopCenter)
-                        .offset(y = (-8).dp)
-                )
-                // Profile Avatar
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF3B82F6))
-                        .border(1.5.dp, Color(0xFFFFD700), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                // Level label badge
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFFD700))
-                        .align(Alignment.BottomEnd),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "$level",
-                        fontSize = 9.sp,
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Column {
-                Text(
-                    text = username.uppercase(),
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "RANK: ",
-                        color = Color(0xFF64748B),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = rank,
-                        color = Color(0xFFFFC107),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                // Tiny XP slider
-                Box(
-                    modifier = Modifier
-                        .width(70.dp)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(Color.White.copy(alpha = 0.1f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(xpProgress)
-                            .background(Color(0xFF00FFCC))
-                    )
-                }
-            }
-        }
-
-        // Center Arcade Game Logo (Dynamic 3D glowing SNAKE LEGENDS)
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Text(
-                    text = "SNAKE",
-                    color = Color(0xFFFFD700),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.SansSerif,
-                    style = androidx.compose.ui.text.TextStyle(
-                        shadow = Shadow(color = Color(0xFFEA580C), offset = Offset(1.5f, 1.5f), blurRadius = 2f)
-                    )
-                )
-                Text(
-                    text = "LEGENDS",
-                    color = Color(0xFF22D3EE),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.SansSerif,
-                    style = androidx.compose.ui.text.TextStyle(
-                        shadow = Shadow(color = Color(0xFF1D4ED8), offset = Offset(1.5f, 1.5f), blurRadius = 2f)
-                    )
-                )
-            }
-        }
-
-        // Right Coin Indicator + Gems + Action suite
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // Coins capsules
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
-            ) {
-                Icon(
-                    Icons.Default.MonetizationOn,
-                    contentDescription = null,
-                    tint = Color(0xFFFFD700),
-                    modifier = Modifier.size(13.dp)
-                )
-                Spacer(modifier = Modifier.width(3.dp))
-                Text(
-                    text = String.format("%,d", goldPoints),
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-
-            // Gems capsule
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
-            ) {
-                Icon(
-                    Icons.Default.Star, // Star representing diamond gem visually
-                    contentDescription = null,
-                    tint = Color(0xFFF472B6),
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(3.dp))
-                Text(
-                    text = "$gemPoints",
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-
-            // Command panel
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf(
-                    Icons.Default.Settings to onSettingsClick,
-                    Icons.Default.Mail to onMailClick,
-                    Icons.Default.Notifications to onAlertClick
-                ).forEach { (icon, clickAction) ->
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF1E293B))
-                            .border(1.dp, Color(0xFF334155), RoundedCornerShape(6.dp))
-                            .clickable { clickAction() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = Color(0xFF94A3B8),
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun SocialFeedPanel(
-    friendsOnline: List<String>,
-    onPartyInvitesClick: () -> Unit,
-    onRecentNewsClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            // Steel blue panel header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF1E3A8A).copy(alpha = 0.4f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "SOCIAL FEED",
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.Monospace
-                )
-                Icon(
-                    Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Friends Online: ${friendsOnline.size}",
-                color = Color(0xFF22C55E),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-            )
-
-            // Dynamic links
-            Column(
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF1E293B))
-                        .clickable { onPartyInvitesClick() }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Group,
-                            contentDescription = null,
-                            tint = Color(0xFF00FFCC),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Party Invites",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Icon(
-                        Icons.Default.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = Color(0xFF64748B),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF1E293B))
-                        .clickable { onRecentNewsClick() }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Star, // Star fallback
-                            contentDescription = null,
-                            tint = Color(0xFF00FFCC),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Recent News",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Icon(
-                        Icons.Default.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = Color(0xFF64748B),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Bulletin lists
-            Column(
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.Top,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black.copy(alpha = 0.2f))
-                        .padding(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFFFD700)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Column {
-                        Text(text = "Recent News", color = Color(0xFFFFD700), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "Friend: ${friendsOnline.getOrNull(0) ?: "Alex"} and ${friendsOnline.getOrNull(1) ?: "Mehir"} just entered a Ranked match!",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 9.sp,
-                            lineHeight = 11.sp
-                        )
-                    }
-                }
-
-                Row(
-                    verticalAlignment = Alignment.Top,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black.copy(alpha = 0.2f))
-                        .padding(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF3B82F6)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Notifications, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Column {
-                        Text(text = "System Update", color = Color(0xFF3B82F6), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "Weekly tournaments are live! Join the Classic Arena event for double XP multipliers!",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 9.sp,
-                            lineHeight = 11.sp
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PlayNowButtonCard(
-    playersCount: Int,
-    queueTime: Int,
-    onClick: () -> Unit
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val scaleAnim by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.025f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1100, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseBtn"
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scaleAnim)
-            .clickable { onClick() }
-            .shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = Color(0xFFFF9E00), spotColor = Color(0xFFFF9E00)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color(0xFFFFEA79), Color(0xFFFF9E00))
-                    )
-                )
-                .padding(horizontal = 16.dp, vertical = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.25f))
-                        .border(1.5.dp, Color.White, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Star, // standard cute mascot stand-in
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(14.dp))
-
-                Column {
-                    Text(
-                        text = "PLAY NOW",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.SansSerif,
-                        style = androidx.compose.ui.text.TextStyle(
-                            shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(2f, 2f), blurRadius = 3f)
-                        )
-                    )
-                    Text(
-                        text = "Auto-Queue · Lobby Live ($playersCount players online)",
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.2f))
-                    .padding(4.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun MultiplayerSelectorV2(
-    selectedMode: String,
-    onModeSelected: (String) -> Unit,
-    onSettingsClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.2.dp, Color(0xFF0284C7))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color(0xFF38BDF8), Color(0xFF0284C7))
-                    )
-                )
-                .padding(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy((-6).dp)
-                    ) {
-                        listOf(Color(0xFF00FFCC), Color(0xFFEC4899), Color(0xFFFF9800)).forEach { col ->
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(col)
-                                    .border(1.5.dp, Color.White, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Circle, contentDescription = null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(10.dp))
-                            }
-                        }
-                    }
-
-                    Text(
-                        text = "MULTIPLAYER",
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.SansSerif,
-                        style = androidx.compose.ui.text.TextStyle(
-                            shadow = Shadow(color = Color.Black.copy(alpha = 0.3f), offset = Offset(1.5f, 1.5f), blurRadius = 2f)
-                        )
-                    )
-                }
-
-                IconButton(onClick = onSettingsClick, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Blue capsule sub-mode options
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf("Classic" to "Casual", "Royale" to "Battle Royale", "Private" to "Private Room").forEach { (label, rawMode) ->
-                    val isActive = selectedMode == rawMode
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isActive) Color.White else Color.Black.copy(alpha = 0.25f))
-                            .clickable { onModeSelected(rawMode) }
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            color = if (isActive) Color(0xFF0284C7) else Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun RoyalPassCard(
-    level: Int,
-    xpProgress: Float,
-    onViewRewardsClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.2.dp, Color(0xFFE2E8F0).copy(alpha = 0.15f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color(0xFF5B21B6), Color(0xFF311062))
-                    )
-                )
-                .padding(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFFFC107))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = null,
-                            tint = Color.Black,
-                            modifier = Modifier.size(10.dp)
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            text = "ROYAL PASS",
-                            color = Color(0xFFFFD700),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = FontFamily.SansSerif
-                        )
-                        Text(
-                            text = "SEASON 5: SLITHER REIGN",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-
-                Text(
-                    text = "Level $level",
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Progress bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Color.Black.copy(alpha = 0.3f))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(xpProgress)
-                        .background(Color(0xFFE0F2FE))
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.Black.copy(alpha = 0.2f))
-                        .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(10.dp))
-                        .padding(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF4C1D95)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Star, // Premium Star fallback
-                            contentDescription = null,
-                            tint = Color(0xFFE9D5FF),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Column {
-                        Text(
-                            text = "Snake Skin",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "\"Neon Fury\"",
-                            color = Color(0xFFA5B4FC),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-
-                // View Pass yellow button
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color(0xFFFFD700), Color(0xFFD97706))
-                            )
-                        )
-                        .clickable { onViewRewardsClick() }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "View Pass",
-                        color = Color.Black,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun InteractiveGameBottomBar(
-    activeTab: String,
-    onTabSelected: (String) -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF0F172A),
-        shadowElevation = 12.dp,
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(vertical = 4.dp, horizontal = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val tabs = listOf(
-                "HOME" to Icons.Default.Home,
-                "SNAKES" to Icons.Default.Brush,
-                "EVENTS" to Icons.Default.Star,
-                "LEADERBOARDS" to Icons.Default.BarChart,
-                "SHOP" to Icons.Default.ShoppingCart
-            )
-
-            tabs.forEach { (tabId, icon) ->
-                val isActive = activeTab == tabId
-                Column(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isActive) Color(0xFF131F3F) else Color.Transparent)
-                        .clickable { onTabSelected(tabId) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = tabId,
-                        tint = if (isActive) Color(0xFF00FFCC) else Color(0xFF64748B),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = when(tabId) {
-                            "SNAKES" -> "CUSTOMIZE"
-                            "EVENTS" -> "TOURNAMENTS"
-                            "LEADERBOARDS" -> "GLOBAL"
-                            "SHOP" -> "PRODUCTS"
-                            else -> tabId
-                        },
-                        color = if (isActive) Color.White else Color(0xFF64748B),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun HexGridLiveSnakePreview(
@@ -4120,9 +2045,9 @@ fun HexGridLiveSnakePreview(
     var frameTick by remember { mutableStateOf(0) }
 
     val skinColors = listOf(
-        listOf(Color(0xFF00FFCC), Color(0xFF008B8B), Color(0xFFEDFDF9)), // Neon Green
-        listOf(Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFFFF1F2)), // Cyber Violet/Pink
-        listOf(Color(0xFFFF9800), Color(0xFFFFEB3B), Color(0xFFFFFDE7))  // Solar Flare
+        listOf(Color(0xFF00FFCC), Color(0xFF008B8B), Color(0xFFEDFDF9)),
+        listOf(Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFFFF1F2)),
+        listOf(Color(0xFFFF9800), Color(0xFFFFEB3B), Color(0xFFFFFDE7))
     )
     val curSkin = skinColors[skinCycle % skinColors.size]
 
@@ -4162,19 +2087,15 @@ fun HexGridLiveSnakePreview(
             if (dist > 2f) {
                 val baseVx = (dx / dist) * speed
                 val baseVy = (dy / dist) * speed
-
                 val slitherFreq = 0.2f
                 val slitherAmp = 1.0f
                 val perpX = -baseVy
                 val perpY = baseVx
                 val slitherOffset = sin(frameTick * slitherFreq) * slitherAmp
-
                 vx = baseVx + (perpX / speed) * slitherOffset
                 vy = baseVy + (perpY / speed) * slitherOffset
             } else {
-                if (targetOverride != null) {
-                    targetOverride = null
-                }
+                if (targetOverride != null) targetOverride = null
             }
 
             val newHead = Offset(
@@ -4247,9 +2168,7 @@ fun HexGridLiveSnakePreview(
                 p.vx *= 0.94f
                 p.vy *= 0.94f
                 p.life -= 0.02f
-                if (p.life <= 0f) {
-                    iterator.remove()
-                }
+                if (p.life <= 0f) iterator.remove()
             }
         }
     }
@@ -4272,9 +2191,7 @@ fun HexGridLiveSnakePreview(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .size(6.dp)
@@ -4363,7 +2280,7 @@ fun HexGridLiveSnakePreview(
                             }
                         }
                 ) {
-                    // Geometric Hexagonal Matrix
+                    // Hexagonal grid
                     val hexRadius = 18f
                     val dx = hexRadius * 1.5f
                     val dy = hexRadius * kotlin.math.sqrt(3f)
@@ -4374,7 +2291,7 @@ fun HexGridLiveSnakePreview(
                             val cy = j * dy
 
                             val hexPath = Path().apply {
-                                for (corner in corner_indices) {
+                                for (corner in 0..5) {
                                     val rad = Math.toRadians(corner * 60.0)
                                     val px = cx + hexRadius * cos(rad).toFloat()
                                     val py = cy + hexRadius * sin(rad).toFloat()
@@ -4421,7 +2338,7 @@ fun HexGridLiveSnakePreview(
                         )
                     }
 
-                    // Food Orb
+                    // Food
                     val pulseScale = 1.0f + sin(frameTick * 0.18f).absoluteValue * 0.25f
                     val outerGlow = 7.5f * pulseScale
                     drawCircle(
@@ -4446,7 +2363,7 @@ fun HexGridLiveSnakePreview(
                         center = food
                     )
 
-                    // Snake layers template
+                    // Snake
                     for (i in snakeSegments.indices.reversed()) {
                         val pos = snakeSegments[i]
                         val rPercent = 1.0f - (i.toFloat() / snakeSegments.size.toFloat()) * 0.5f
@@ -4457,7 +2374,6 @@ fun HexGridLiveSnakePreview(
                             radius = radius * 2.5f,
                             center = pos
                         )
-
                         drawCircle(
                             color = curSkin[i % curSkin.size],
                             radius = radius,
@@ -4470,8 +2386,7 @@ fun HexGridLiveSnakePreview(
                                 radius = radius * 0.45f,
                                 center = Offset(pos.x - radius * 0.2f, pos.y - radius * 0.2f)
                             )
-
-                            // Vector gold crown representation!
+                            // Crown
                             val crownPath = Path().apply {
                                 moveTo(pos.x - 7f, pos.y - 6f)
                                 lineTo(pos.x - 9f, pos.y - 12f)
@@ -4488,7 +2403,7 @@ fun HexGridLiveSnakePreview(
                     }
                 }
 
-                // Interactive dashboards overlay text
+                // Overlay text
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -4506,7 +2421,6 @@ fun HexGridLiveSnakePreview(
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )
-
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -4551,7 +2465,6 @@ fun HexGridLiveSnakePreview(
                                 fontFamily = FontFamily.Monospace
                             )
                         }
-
                         Text(
                             text = "TAP TO STEER VIPER",
                             color = Color(0xFF64748B).copy(alpha = 0.8f),
@@ -4567,9 +2480,767 @@ fun HexGridLiveSnakePreview(
     }
 }
 
-private val corner_indices = listOf(0, 1, 2, 3, 4, 5)
+// ========== Private Room Dialog ==========
+@Composable
+fun PrivateRoomDialog(
+    initialCode: String,
+    mpManager: MultiplayerManager,
+    mpStatus: ConnectionStatus,
+    userProfile: UserProfile?,
+    onCodeChange: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var roomCode by remember { mutableStateOf(initialCode) }
+    var chatText by remember { mutableStateOf("") }
 
-// ========== Custom Match Settings Modal (Dialog) ==========
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Surface,
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Text("Private Room Lobby", color = TextWhite, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = roomCode,
+                    onValueChange = {
+                        roomCode = it.take(10).uppercase()
+                        onCodeChange(roomCode)
+                    },
+                    label = { Text("Room Code") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = Primary,
+                        focusedLabelColor = Primary
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                MultiplayerLobbyCard(
+                    mpStatus = mpStatus,
+                    mpManager = mpManager,
+                    userProfile = userProfile,
+                    privateRoomCode = roomCode,
+                    chatTextInput = chatText,
+                    onChatTextChange = { chatText = it },
+                    onSendMessage = {
+                        if (chatText.isNotBlank()) {
+                            mpManager.broadcastChatMessage(chatText)
+                            chatText = ""
+                        }
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = TextGray)
+            }
+        }
+    )
+}
+
+// ========== Multiplayer Settings Sheet ==========
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MultiplayerSettingsSheet(
+    mpManager: MultiplayerManager,
+    onDismiss: () -> Unit
+) {
+    var selectedSettingsTab by remember { mutableStateOf("NETWORK") }
+    var controlScheme by remember { mutableStateOf("Joystick") }
+    var joystickSensitivity by remember { mutableStateOf(1.2f) }
+    var matchHaptics by remember { mutableStateOf(true) }
+    var soundMusicVolume by remember { mutableStateOf(0.75f) }
+    var soundSfxVolume by remember { mutableStateOf(0.85f) }
+    var renderQualityMode by remember { mutableStateOf("Turbo (120FPS)") }
+    var customParticleMultiplier by remember { mutableStateOf(0.8f) }
+    var interfaceThemeMode by remember { mutableStateOf("Neo Cyber") }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0F172A),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .width(44.dp)
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF334155))
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 24.dp, end = 24.dp, bottom = 40.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "ARCADE SYSTEM CONFIG",
+                        color = Color(0xFF22D3EE),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        style = TextStyle(
+                            shadow = Shadow(color = Color(0xFF1D4ED8), offset = Offset(1f, 1f), blurRadius = 2f)
+                        )
+                    )
+                    Text(
+                        text = "Optimize matchmaking feeds, input layout & sensory styling",
+                        color = Color(0xFF64748B),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1E293B))
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close Settings",
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    "NETWORK" to "Online",
+                    "CONTROLS" to "Input",
+                    "AESTHETICS" to "Sensory"
+                ).forEach { (tabId, label) ->
+                    val isTabActive = selectedSettingsTab == tabId
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (isTabActive) Color(0xFF1E3A8A).copy(alpha = 0.6f) else Color.Transparent
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isTabActive) Color(0xFF3B82F6).copy(alpha = 0.5f) else Color.Transparent,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .clickable { selectedSettingsTab = tabId }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label.uppercase(),
+                            color = if (isTabActive) Color(0xFF00FFCC) else Color(0xFF64748B),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            when (selectedSettingsTab) {
+                "NETWORK" -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Settings, null, tint = Color(0xFF00FFCC), modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "MULTIPLAYER MATCHMAKING CORES",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Global Server Zone", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Estimated latency: ${
+                                            when(mpManager.selectedRegion.regionName) {
+                                                "US East" -> "~18ms (Optimal)"
+                                                "EU West" -> "~74ms"
+                                                "Asia Pac" -> "~138ms"
+                                                else -> "~112ms"
+                                            }
+                                        }",
+                                        color = Color(0xFF22C55E),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF1E293B))
+                                        .border(1.dp, Color(0xFF334155), RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            val regions = ServerRegion.values()
+                                            val next = (mpManager.selectedRegion.ordinal + 1) % regions.size
+                                            mpManager.selectedRegion = regions[next]
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = mpManager.selectedRegion.regionName.uppercase(),
+                                        color = Color(0xFF22D3EE),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1.5f)) {
+                                    Text("Delay Wave Compensation", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("Interpolates remote peer positions dynamically to prevent game jitter", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                                }
+                                Switch(
+                                    checked = mpManager.isLagCompensationEnabled,
+                                    onCheckedChange = { mpManager.isLagCompensationEnabled = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF00FFCC),
+                                        checkedTrackColor = Color(0xFF00FFCC).copy(alpha = 0.3f),
+                                        uncheckedThumbColor = Color(0xFF475569),
+                                        uncheckedTrackColor = Color(0xFF1E293B)
+                                    )
+                                )
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Text("Engine Simulation Frequency", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Higher frequencies yield accurate snake tracking but increase bandwidth usage", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                            Spacer(Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(20, 30, 60).forEach { rate ->
+                                    val isActive = mpManager.tickRateHz == rate
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isActive) Color(0xFF1E3A8A).copy(alpha = 0.8f) else Color(0xFF1E293B))
+                                            .border(
+                                                width = 1.2.dp,
+                                                color = if (isActive) Color(0xFF3B82F6) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { mpManager.tickRateHz = rate }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "${rate} HZ",
+                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "CONTROLS" -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Settings, null, tint = Color(0xFFFF9E00), modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "TACTILE TENSE SCHEMES",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Text("Tactile Action Layout", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Choose your preferred slither handling input layout", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                            Spacer(Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("Joystick", "Swipe", "D-Pad").forEach { mode ->
+                                    val isActive = controlScheme == mode
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isActive) Color(0xFF7C2D12).copy(alpha = 0.5f) else Color(0xFF1E293B))
+                                            .border(
+                                                width = 1.2.dp,
+                                                color = if (isActive) Color(0xFFEA580C) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { controlScheme = mode }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = mode.uppercase(),
+                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Steering Sensitivity", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = String.format("%.1fx", joystickSensitivity),
+                                    color = Color(0xFFFF9E00),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Text("Adjusts input response acceleration when making fast coils", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                            Spacer(Modifier.height(8.dp))
+                            Slider(
+                                value = joystickSensitivity,
+                                onValueChange = { joystickSensitivity = it },
+                                valueRange = 0.5f..2.0f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFFF9E00),
+                                    activeTrackColor = Color(0xFFFF9E00),
+                                    inactiveTrackColor = Color(0xFF1E293B)
+                                )
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1.5f)) {
+                                    Text("Rumble Haptic Resonance", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("Fires tactile feedback rumbles upon feeding or hitting walls", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                                }
+                                Switch(
+                                    checked = matchHaptics,
+                                    onCheckedChange = { matchHaptics = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFFFF9E00),
+                                        checkedTrackColor = Color(0xFFFF9E00).copy(alpha = 0.3f),
+                                        uncheckedThumbColor = Color(0xFF475569),
+                                        uncheckedTrackColor = Color(0xFF1E293B)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                "AESTHETICS" -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Star, null, tint = Color(0xFFEC4899), modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "GRAPHICAL & SONIC RENDERING",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Synth Background Music (BGM)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "${(soundMusicVolume * 100).toInt()}%",
+                                    color = Color(0xFFEC4899),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Slider(
+                                value = soundMusicVolume,
+                                onValueChange = { soundMusicVolume = it },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFEC4899),
+                                    activeTrackColor = Color(0xFFEC4899),
+                                    inactiveTrackColor = Color(0xFF1E293B)
+                                )
+                            )
+
+                            Spacer(Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Arcade Feed Sound Effects (SFX)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "${(soundSfxVolume * 100).toInt()}%",
+                                    color = Color(0xFFEC4899),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Slider(
+                                value = soundSfxVolume,
+                                onValueChange = { soundSfxVolume = it },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFEC4899),
+                                    activeTrackColor = Color(0xFFEC4899),
+                                    inactiveTrackColor = Color(0xFF1E293B)
+                                )
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Text("Sensory Frame-Rate Limit", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Smoother frame updates require active screen-reign graphics adapters", color = Color(0xFF94A3B8), fontSize = 10.sp, lineHeight = 12.sp)
+                            Spacer(Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("Eco (30FPS)", "Pro (60FPS)", "Turbo (120FPS)").forEach { qOpt ->
+                                    val isActive = renderQualityMode == qOpt
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1.1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isActive) Color(0xFF4C1D95).copy(alpha = 0.5f) else Color(0xFF1E293B))
+                                            .border(
+                                                width = 1.2.dp,
+                                                color = if (isActive) Color(0xFFA78BFA) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { renderQualityMode = qOpt }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = qOpt.uppercase(),
+                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070B13))
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
+                        ) {
+                            Text("Aesthetic Color Theme", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("Neo Cyber", "Prismatic", "Solar Flare").forEach { thm ->
+                                    val isActive = interfaceThemeMode == thm
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isActive) Color(0xFF831843).copy(alpha = 0.5f) else Color(0xFF1E293B))
+                                            .border(
+                                                width = 1.2.dp,
+                                                color = if (isActive) Color(0xFFF43F5E) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { interfaceThemeMode = thm }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = thm.uppercase(),
+                                            color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(28.dp))
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "APPLY CONFIGURATION",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ========== Edit Name Dialog ==========
+@Composable
+fun EditNameDialog(
+    currentName: String,
+    onNameChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Surface,
+        shape = RoundedCornerShape(24.dp),
+        title = { Text("Change Username", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text(
+                    "Enter a new display name (max 15 characters)",
+                    color = TextGray,
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = currentName,
+                    onValueChange = { onNameChange(it.take(15)) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = Primary
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("edit_username_input"),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
+                Text("Save", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextGray)
+            }
+        }
+    )
+}
+
+// ========== Bottom Navigation Bar ==========
+@Composable
+fun InteractiveGameBottomBar(
+    activeTab: String,
+    onTabSelected: (String) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xFF0F172A),
+        shadowElevation = 12.dp,
+        border = BorderStroke(1.dp, Color(0xFF1E293B))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(vertical = 4.dp, horizontal = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val tabs = listOf(
+                "HOME" to Icons.Default.Home,
+                "SNAKES" to Icons.Default.Brush,
+                "EVENTS" to Icons.Default.Star,
+                "LEADERBOARDS" to Icons.Default.BarChart,
+                "SHOP" to Icons.Default.ShoppingCart
+            )
+
+            tabs.forEach { (tabId, icon) ->
+                val isActive = activeTab == tabId
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isActive) Color(0xFF131F3F) else Color.Transparent)
+                        .clickable { onTabSelected(tabId) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = tabId,
+                        tint = if (isActive) Color(0xFF00FFCC) else Color(0xFF64748B),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = when(tabId) {
+                            "SNAKES" -> "CUSTOMIZE"
+                            "EVENTS" -> "TOURNAMENTS"
+                            "LEADERBOARDS" -> "GLOBAL"
+                            "SHOP" -> "PRODUCTS"
+                            else -> tabId
+                        },
+                        color = if (isActive) Color.White else Color(0xFF64748B),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ========== Match Settings Dialog ==========
 @Composable
 fun MatchSettingsDialog(
     viewModel: GameViewModel,
@@ -4610,7 +3281,7 @@ fun MatchSettingsDialog(
                         fontSize = if (isLandscape) 15.sp else 18.sp,
                         fontWeight = FontWeight.Black,
                         fontFamily = FontFamily.Monospace,
-                        style = androidx.compose.ui.text.TextStyle(
+                        style = TextStyle(
                             shadow = Shadow(color = Color(0xFF1D4ED8), offset = Offset(1f, 1f), blurRadius = 2f)
                         ),
                         maxLines = 1,
@@ -4651,7 +3322,7 @@ fun MatchSettingsDialog(
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(if (isLandscape) 12.dp else 16.dp)
             ) {
-                // Section 1: MATCH SCALE (Snakes count & Map size)
+                // Match Scale
                 Column {
                     Text(
                         text = "MATCH SCALE (SNAKE DENSITY)",
@@ -4660,7 +3331,7 @@ fun MatchSettingsDialog(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
+                    Spacer(Modifier.height(if (isLandscape) 4.dp else 8.dp))
 
                     val scaleOptions = listOf(
                         Triple(16, "16 Snakes", "Compact Map"),
@@ -4699,7 +3370,7 @@ fun MatchSettingsDialog(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Spacer(Modifier.height(2.dp))
                                     Text(
                                         text = desc,
                                         color = Color(0xFF94A3B8),
@@ -4715,7 +3386,7 @@ fun MatchSettingsDialog(
                     }
                 }
 
-                // Section 2: GAME MODES Selection
+                // Game Modes
                 Column {
                     Text(
                         text = "GAME MODE TYPE",
@@ -4724,14 +3395,14 @@ fun MatchSettingsDialog(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
+                    Spacer(Modifier.height(if (isLandscape) 4.dp else 8.dp))
                     GameModeRow(
                         selectedMode = selectedMode,
                         onModeSelected = onModeSelected
                     )
                 }
 
-                // Section 3: ARENA MAPS THEME
+                // Arena Themes
                 Column {
                     Text(
                         text = "ARENA MAP THEMES",
@@ -4740,14 +3411,14 @@ fun MatchSettingsDialog(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
+                    Spacer(Modifier.height(if (isLandscape) 4.dp else 8.dp))
                     ArenaThemeRow(
                         selectedTheme = selectedTheme,
                         onThemeSelected = onThemeSelected
                     )
                 }
 
-                // Section 4: TACTICAL CLASS ABILITY
+                // Tactical Class
                 Column {
                     Text(
                         text = "TACTICAL CLASS ABILITY",
@@ -4756,14 +3427,14 @@ fun MatchSettingsDialog(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
+                    Spacer(Modifier.height(if (isLandscape) 4.dp else 8.dp))
                     TacticalClassRow(
                         selectedClass = selectedClass,
                         onClassSelected = onClassSelected
                     )
                 }
 
-                // Section 5: MULTIPLAYER CODES PORTAL
+                // Private Room
                 if (selectedMode == "Private Room") {
                     Column(
                         modifier = Modifier
@@ -4786,7 +3457,7 @@ fun MatchSettingsDialog(
                                         .clip(CircleShape)
                                         .background(if (mpStatus == ConnectionStatus.CONNECTED) Color.Green else Color.Red)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(Modifier.width(6.dp))
                                 Text(
                                     "MULTIPLAYER PORTAL (Private)",
                                     color = Color(0xFF00FFCC),
@@ -4879,7 +3550,7 @@ fun MatchSettingsDialog(
                         tint = Color.White,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
                         text = "BATTLE NOW",
                         color = Color.White,
@@ -4894,7 +3565,7 @@ fun MatchSettingsDialog(
     )
 }
 
-// ========== Royal Pass Rewards Dashboard (Dialog Modal) ==========
+// ========== Royal Pass Dialog ==========
 @Composable
 fun RoyalPassDialog(
     viewModel: GameViewModel,
@@ -4907,11 +3578,9 @@ fun RoyalPassDialog(
     val currentLevel = userProfile?.level ?: 1
     val prefs = remember { context.getSharedPreferences("royal_pass_prefs", Context.MODE_PRIVATE) }
     
-    // Core states
     var isEliteActive by remember { mutableStateOf(prefs.getBoolean("is_elite_active", false)) }
     var claimedStatusMap by remember { mutableStateOf(mutableMapOf<Int, Boolean>()) }
 
-    // Init claimed status map
     LaunchedEffect(Unit) {
         val newMap = mutableMapOf<Int, Boolean>()
         listOf(1, 5, 10, 15, 20, 25, 30).forEach { lvl ->
@@ -4923,7 +3592,6 @@ fun RoyalPassDialog(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp || configuration.screenWidthDp >= 600
 
-    // List of rewards
     data class PassReward(
         val levelRequired: Int,
         val isPremium: Boolean,
@@ -5093,7 +3761,6 @@ fun RoyalPassDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Elite Upgrade Premium Promo Bar
                 if (!isEliteActive) {
                     Box(
                         modifier = Modifier
@@ -5159,7 +3826,7 @@ fun RoyalPassDialog(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF22C55E), modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Check, null, tint = Color(0xFF22C55E), modifier = Modifier.size(14.dp))
                             Text(
                                 "ELITE ROYAL PASS ACTIVATED • RETRO BENEFITS INJECTED",
                                 color = Color(0xFF22C55E),
@@ -5172,7 +3839,6 @@ fun RoyalPassDialog(
                     }
                 }
 
-                // Scrollable Rewards Stream List
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -5300,7 +3966,7 @@ fun RoyalPassDialog(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(3.dp)
                                             ) {
-                                                Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(8.dp))
+                                                Icon(Icons.Default.Lock, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(8.dp))
                                                 Text(
                                                     text = "ELITE REQ",
                                                     color = Color(0xFF94A3B8),
