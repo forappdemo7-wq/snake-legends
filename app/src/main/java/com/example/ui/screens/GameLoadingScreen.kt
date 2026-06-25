@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,8 +24,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -145,6 +148,15 @@ fun GameLoadingScreen(
             .background(Color(0xFF030712)) // Dark cyber vault
             .testTag("game_loading_container")
     ) {
+        // High fidelity biome background image corresponding to selected theme
+        Image(
+            painter = painterResource(id = getThemePreviewDrawable(arenaTheme)),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            alpha = 0.25f
+        )
+
         // High fidelity grid layout adapting smoothly on any screen dimension
         if (isLandscape) {
             Row(
@@ -583,10 +595,10 @@ fun LoadingStatusBar(
 // Helper methods to get color depending on arenaTheme
 private fun getThemeAccentColor(theme: ArenaTheme): Color {
     return when (theme) {
-        ArenaTheme.CYBER_CITY -> Color(0xFF00FFCC) // Glowing Cyber
-        ArenaTheme.LAVA_WORLD -> Color(0xFFFF5722) // Lava Orange
-        ArenaTheme.FROZEN_ARENA -> Color(0xFF00E5FF) // Icy Freeze Cyber
-        ArenaTheme.JUNGLE_TEMPLE -> Color(0xFF4CAF50) // Emerald Green
+        ArenaTheme.CYBER_CITY -> Color(0xFFDF9E52) // Desert Sand Orange
+        ArenaTheme.LAVA_WORLD -> Color(0xFFFF3300) // Lava Red-Orange
+        ArenaTheme.FROZEN_ARENA -> Color(0xFF00E5FF) // Icy Glacier Blue
+        ArenaTheme.JUNGLE_TEMPLE -> Color(0xFF4CAF50) // Emerald Moss Green
         ArenaTheme.SPACE_STATION -> Color(0xFFE040FB) // Void Violet Purple
         ArenaTheme.NEON_GRID -> Color(0xFFEEFF41) // Electric Volt Yellow-Green
     }
@@ -594,8 +606,8 @@ private fun getThemeAccentColor(theme: ArenaTheme): Color {
 
 private fun getThemeGlowColor(theme: ArenaTheme): Color {
     return when (theme) {
-        ArenaTheme.CYBER_CITY -> Color(0x3300FFCC)
-        ArenaTheme.LAVA_WORLD -> Color(0x33FF5722)
+        ArenaTheme.CYBER_CITY -> Color(0x33DF9E52)
+        ArenaTheme.LAVA_WORLD -> Color(0x33FF3300)
         ArenaTheme.FROZEN_ARENA -> Color(0x3300E5FF)
         ArenaTheme.JUNGLE_TEMPLE -> Color(0x334CAF50)
         ArenaTheme.SPACE_STATION -> Color(0x33E040FB)

@@ -5,6 +5,9 @@ import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -219,7 +222,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    var hapticsEnabled: Boolean = true
+    var hapticsEnabled by mutableStateOf(true)
 
     fun updateUsername(newUsername: String) {
         viewModelScope.launch {

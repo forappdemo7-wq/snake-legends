@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -26,6 +28,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
@@ -55,6 +58,10 @@ fun GameScreen(
 ) {
     val engine = viewModel.gameEngine
     val textMeasurer = rememberTextMeasurer()
+
+    val cyberNeonCityBg = ImageBitmap.imageResource(id = com.example.R.drawable.img_cyber_neon_city_1782378963453)
+    val volcanicWastelandBg = ImageBitmap.imageResource(id = com.example.R.drawable.img_volcanic_wasteland_1782378977998)
+    val deepSpaceNebulaBg = ImageBitmap.imageResource(id = com.example.R.drawable.img_deep_space_nebula_1782378992376)
 
     var tickState by remember { mutableStateOf(0) }
     var isWideViewportMode by remember { mutableStateOf(false) }
@@ -165,7 +172,7 @@ fun GameScreen(
 
             // Universal Cosmic Nebula gas background drifting layer
             val nebulaColors = when (engine.arenaTheme) {
-                ArenaTheme.CYBER_CITY -> listOf(Color(0xFFFF00CC), Color(0xFF00FFCC), Color(0xFFFF00CC))
+                ArenaTheme.CYBER_CITY -> listOf(Color(0xFFE65100), Color(0xFFFFB74D), Color(0xFFFFD54F))
                 ArenaTheme.SPACE_STATION -> listOf(Color(0xFF9933FF), Color(0xFF7E57C2), Color(0xFF4A148C))
                 ArenaTheme.LAVA_WORLD -> listOf(Color(0xFFFF4500), Color(0xFFFF8800), Color(0xFFDD2C00))
                 ArenaTheme.FROZEN_ARENA -> listOf(Color(0xFF00E5FF), Color(0xFF00B0FF), Color(0xFF006064))
@@ -222,52 +229,273 @@ fun GameScreen(
             // Draw Background grid / themes
             when (engine.arenaTheme) {
                 ArenaTheme.CYBER_CITY -> {
-                    // Draw infinite cyan grid lines
-                    val gridSpacing = if (lowGraphicsMode) 250f else 100f
-                    val startX = (px - centerX) - (px - centerX) % gridSpacing
-                    val endX = (px + centerX) + gridSpacing
-                    val startY = (py - centerY) - (py - centerY) % gridSpacing
-                    val endY = (py + centerY) + gridSpacing
+                    // 1. Draw sand tile grid (using viewport aligned iteration)
+                    val tileSize = 200f
+                    val minTX = ((px - centerX / scaleFactor) / tileSize).toInt() - 1
+                    val maxTX = ((px + centerX / scaleFactor) / tileSize).toInt() + 1
+                    val minTY = ((py - centerY / scaleFactor) / tileSize).toInt() - 1
+                    val maxTY = ((py + centerY / scaleFactor) / tileSize).toInt() + 1
 
-                    var x = startX
-                    while (x <= endX) {
-                        val viewportLineX = (x - px) * scaleFactor + centerX
-                        drawLine(
-                            color = Color(0x3300FFCC),
-                            start = Offset(viewportLineX, 0f),
-                            end = Offset(viewportLineX, canvasHeight),
-                            strokeWidth = 1f
-                        )
-                        x += gridSpacing
+                    for (tx in minTX..maxTX) {
+                        for (ty in minTY..maxTY) {
+                            val wx = tx * tileSize
+                            val wy = ty * tileSize
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val tileTopLeft = worldToViewport(Vector2D(wx, wy))
+                            val tileBottomRight = worldToViewport(Vector2D(wx + tileSize, wy + tileSize))
+                            
+                            // Richly textured alternate dune colors
+                            val color = if ((tx + ty) % 2 == 0) Color(0xFFE5A65D) else Color(0xFFDF9E52)
+                            drawRect(
+                                color = color,
+                                topLeft = tileTopLeft,
+                                size = Size(tileBottomRight.x - tileTopLeft.x + 1f, tileBottomRight.y - tileTopLeft.y + 1f)
+                            )
+                        }
                     }
 
-                    var y = startY
-                    while (y <= endY) {
-                        val viewportLineY = (y - py) * scaleFactor + centerY
-                        drawLine(
-                            color = Color(0x3300FFCC),
-                            start = Offset(0f, viewportLineY),
-                            end = Offset(canvasWidth, viewportLineY),
-                            strokeWidth = 1f
-                        )
-                        y += gridSpacing
+                    // 2. Beautiful sand wind ripples/curves (like dunes)
+                    val duneSpacing = 400f
+                    val minDX = ((px - centerX / scaleFactor) / duneSpacing).toInt() - 1
+                    val maxDX = ((px + centerX / scaleFactor) / duneSpacing).toInt() + 1
+                    val minDY = ((py - centerY / scaleFactor) / duneSpacing).toInt() - 1
+                    val maxDY = ((py + centerY / scaleFactor) / duneSpacing).toInt() + 1
+                    for (dx in minDX..maxDX) {
+                        for (dy in minDY..maxDY) {
+                            val wx = dx * duneSpacing
+                            val wy = dy * duneSpacing
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val vpos = worldToViewport(Vector2D(wx, wy))
+                            val seed = (dx * 13 + dy * 29) % 100
+                            if (seed % 3 == 0) {
+                                val rippleWidth = 90f * scaleFactor
+                                val rippleHeight = 35f * scaleFactor
+                                drawArc(
+                                    color = Color(0xFFC7843B).copy(alpha = 0.4f),
+                                    startAngle = 0f,
+                                    sweepAngle = 180f,
+                                    useCenter = false,
+                                    topLeft = Offset(vpos.x - rippleWidth / 2, vpos.y - rippleHeight / 2),
+                                    size = Size(rippleWidth, rippleHeight),
+                                    style = Stroke(width = 2.5f * scaleFactor)
+                                )
+                            }
+                        }
                     }
 
-                    // Draw outer wall border markings
+                    // 3. Render Sand Pit Elements: Oasis, Sinuous wall barriers, Cacti, Dinosaur skeletons, skulls
+                    val elementSpacing = 500f
+                    val minGX = ((px - centerX / scaleFactor) / elementSpacing).toInt() - 1
+                    val maxGX = ((px + centerX / scaleFactor) / elementSpacing).toInt() + 1
+                    val minGY = ((py - centerY / scaleFactor) / elementSpacing).toInt() - 1
+                    val maxGY = ((py + centerY / scaleFactor) / elementSpacing).toInt() + 1
+
+                    for (gx in minGX..maxGX) {
+                        for (gy in minGY..maxGY) {
+                            val wx = gx * elementSpacing
+                            val wy = gy * elementSpacing
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val vpos = worldToViewport(Vector2D(wx, wy))
+                            val seed = (gx * 17 + gy * 31) % 100
+
+                            // 3a. Oasis Water Pool
+                            if (seed % 5 == 0) {
+                                val poolRad = (60f + seed % 15) * scaleFactor
+                                // Rocky sand rim
+                                drawCircle(
+                                    color = Color(0xFF7E5225),
+                                    radius = poolRad + 10f * scaleFactor,
+                                    center = vpos
+                                )
+                                // Shallow teal shore
+                                drawCircle(
+                                    color = Color(0xFF26A69A).copy(alpha = 0.6f),
+                                    radius = poolRad + 3f * scaleFactor,
+                                    center = vpos
+                                )
+                                // Blue Oasis Water
+                                drawCircle(
+                                    color = Color(0xFF0288D1),
+                                    radius = poolRad,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFF29B6F6),
+                                    radius = poolRad * 0.6f,
+                                    center = vpos
+                                )
+                            }
+
+                            // 3b. High Quality Saguaro Cactus
+                            if (seed % 5 == 1) {
+                                val cacH = 50f * scaleFactor
+                                val cacW = 12f * scaleFactor
+                                // Main trunk
+                                drawRect(
+                                    color = Color(0xFF2E7D32),
+                                    topLeft = Offset(vpos.x - cacW / 2, vpos.y - cacH / 2),
+                                    size = Size(cacW, cacH)
+                                )
+                                // Left arm
+                                drawRect(
+                                    color = Color(0xFF1B5E20),
+                                    topLeft = Offset(vpos.x - cacW * 1.6f, vpos.y - cacH * 0.15f),
+                                    size = Size(cacW * 1.6f, cacW)
+                                )
+                                drawRect(
+                                    color = Color(0xFF1B5E20),
+                                    topLeft = Offset(vpos.x - cacW * 1.6f, vpos.y - cacH * 0.4f),
+                                    size = Size(cacW, cacH * 0.35f)
+                                )
+                                // Right arm
+                                drawRect(
+                                    color = Color(0xFF2E7D32),
+                                    topLeft = Offset(vpos.x + cacW * 0.5f, vpos.y + cacH * 0.05f),
+                                    size = Size(cacW * 1.6f, cacW)
+                                )
+                                drawRect(
+                                    color = Color(0xFF2E7D32),
+                                    topLeft = Offset(vpos.x + cacW * 1.1f, vpos.y - cacH * 0.2f),
+                                    size = Size(cacW, cacH * 0.3f)
+                                )
+                            }
+
+                            // 3c. Ancient Dinosaur Skeleton Ribs
+                            if (seed % 5 == 2) {
+                                val spineLen = 60f * scaleFactor
+                                // Draw spine
+                                drawLine(
+                                    color = Color(0xFFEFEBE9),
+                                    start = Offset(vpos.x - spineLen / 2, vpos.y),
+                                    end = Offset(vpos.x + spineLen / 2, vpos.y),
+                                    strokeWidth = 4.5f * scaleFactor
+                                )
+                                // Draw 4 ribs
+                                repeat(4) { rIdx ->
+                                    val rx = vpos.x - spineLen / 2 + rIdx * (spineLen / 3f)
+                                    drawArc(
+                                        color = Color(0xFFEFEBE9),
+                                        startAngle = 180f,
+                                        sweepAngle = 180f,
+                                        useCenter = false,
+                                        topLeft = Offset(rx - 10f * scaleFactor, vpos.y - 20f * scaleFactor),
+                                        size = Size(20f * scaleFactor, 40f * scaleFactor),
+                                        style = Stroke(width = 3.5f * scaleFactor)
+                                    )
+                                }
+                            }
+
+                            // 3d. Sinuous Sandstone clay walls / paths
+                            if (seed % 5 == 3 && !lowGraphicsMode) {
+                                val wallLen = 90f * scaleFactor
+                                val wallThick = 15f * scaleFactor
+                                // Layered 3D clay wall with shadow
+                                drawLine(
+                                    color = Color(0x33000000), // Shadow
+                                    start = Offset(vpos.x - wallLen/2, vpos.y - 8f * scaleFactor),
+                                    end = Offset(vpos.x + wallLen/2, vpos.y + 12f * scaleFactor),
+                                    strokeWidth = wallThick
+                                )
+                                drawLine(
+                                    color = Color(0xFF8D6E63), // Base rock
+                                    start = Offset(vpos.x - wallLen/2, vpos.y - 10f * scaleFactor),
+                                    end = Offset(vpos.x + wallLen/2, vpos.y + 10f * scaleFactor),
+                                    strokeWidth = wallThick
+                                )
+                                drawLine(
+                                    color = Color(0xFFA1887F), // Highlight
+                                    start = Offset(vpos.x - wallLen/2, vpos.y - 10f * scaleFactor),
+                                    end = Offset(vpos.x + wallLen/2, vpos.y + 10f * scaleFactor),
+                                    strokeWidth = wallThick * 0.4f
+                                )
+                            }
+
+                            // 3e. Animal Skull Bone
+                            if (seed % 5 == 4) {
+                                val skullSize = 14f * scaleFactor
+                                // Draw skull base
+                                drawCircle(
+                                    color = Color(0xFFEFEBE9),
+                                    radius = skullSize,
+                                    center = vpos
+                                )
+                                // Draw snout
+                                drawRect(
+                                    color = Color(0xFFEFEBE9),
+                                    topLeft = Offset(vpos.x - skullSize * 0.6f, vpos.y),
+                                    size = Size(skullSize * 1.2f, skullSize * 1.1f)
+                                )
+                                // Draw hollow eye sockets
+                                drawCircle(
+                                    color = Color(0xFF424242),
+                                    radius = skullSize * 0.3f,
+                                    center = Offset(vpos.x - skullSize * 0.4f, vpos.y - skullSize * 0.2f)
+                                )
+                                drawCircle(
+                                    color = Color(0xFF424242),
+                                    radius = skullSize * 0.3f,
+                                    center = Offset(vpos.x + skullSize * 0.4f, vpos.y - skullSize * 0.2f)
+                                )
+                            }
+                        }
+                    }
+
+                    // Bounds - Desert Canyon Rocky Cliffs
                     val topLeft = worldToViewport(Vector2D(0f, 0f))
                     val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    
+                    // Outer thick canyon wall border wall
                     drawRect(
-                        color = Color(0xFF00FFCC),
+                        color = Color(0xFF6D4C41),
                         topLeft = topLeft,
                         size = Size(
                             (bottomRight.x - topLeft.x),
                             (bottomRight.y - topLeft.y)
                         ),
-                        style = Stroke(width = 4f)
+                        style = Stroke(width = 12f * scaleFactor)
+                    )
+                    // Inner lighter gold sandstone highlight border
+                    drawRect(
+                        color = Color(0xFFFFD54F),
+                        topLeft = Offset(topLeft.x + 9f * scaleFactor, topLeft.y + 9f * scaleFactor),
+                        size = Size(
+                            (bottomRight.x - topLeft.x) - 18f * scaleFactor,
+                            (bottomRight.y - topLeft.y) - 18f * scaleFactor
+                        ),
+                        style = Stroke(width = 3f * scaleFactor)
                     )
                 }
 
                 ArenaTheme.SPACE_STATION -> {
+                    // Seamless high-fidelity deep space nebula background image tiling
+                    val tileSize = 200f
+                    val minTX = ((px - centerX / scaleFactor) / tileSize).toInt() - 1
+                    val maxTX = ((px + centerX / scaleFactor) / tileSize).toInt() + 1
+                    val minTY = ((py - centerY / scaleFactor) / tileSize).toInt() - 1
+                    val maxTY = ((py + centerY / scaleFactor) / tileSize).toInt() + 1
+
+                    for (tx in minTX..maxTX) {
+                        for (ty in minTY..maxTY) {
+                            val wx = tx * tileSize
+                            val wy = ty * tileSize
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val tileTopLeft = worldToViewport(Vector2D(wx, wy))
+                            val tileBottomRight = worldToViewport(Vector2D(wx + tileSize, wy + tileSize))
+                            
+                            val tileW = (tileBottomRight.x - tileTopLeft.x + 1f).toInt()
+                            val tileH = (tileBottomRight.y - tileTopLeft.y + 1f).toInt()
+                            if (tileW > 0 && tileH > 0) {
+                                drawImage(
+                                    image = deepSpaceNebulaBg,
+                                    srcOffset = androidx.compose.ui.unit.IntOffset.Zero,
+                                    srcSize = androidx.compose.ui.unit.IntSize(deepSpaceNebulaBg.width, deepSpaceNebulaBg.height),
+                                    dstOffset = androidx.compose.ui.unit.IntOffset(tileTopLeft.x.toInt(), tileTopLeft.y.toInt()),
+                                    dstSize = androidx.compose.ui.unit.IntSize(tileW, tileH)
+                                )
+                            }
+                        }
+                    }
+
                     // Draw star parallax arrays
                     val starsCount = if (lowGraphicsMode) 15 else 50
                     for (i in 0 until starsCount) {
@@ -302,6 +530,71 @@ fun GameScreen(
                         lx += panelSpacing
                     }
 
+                    // Space station mechanical plates & warning indicators
+                    val plateSpacing = 600f
+                    val minGX = ((px - centerX / scaleFactor) / plateSpacing).toInt() - 1
+                    val maxGX = ((px + centerX / scaleFactor) / plateSpacing).toInt() + 1
+                    val minGY = ((py - centerY / scaleFactor) / plateSpacing).toInt() - 1
+                    val maxGY = ((py + centerY / scaleFactor) / plateSpacing).toInt() + 1
+
+                    for (gx in minGX..maxGX) {
+                        for (gy in minGY..maxGY) {
+                            val wx = gx * plateSpacing
+                            val wy = gy * plateSpacing
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val vpos = worldToViewport(Vector2D(wx, wy))
+                            val seed = (gx * 23 + gy * 41) % 100
+                            
+                            // Circular Mechanical Ventilator Fan
+                            if (seed % 5 == 0) {
+                                val radius = 50f * scaleFactor
+                                drawCircle(
+                                    color = Color(0xFF1E1E2F),
+                                    radius = radius,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFF9933FF).copy(alpha = 0.3f),
+                                    radius = radius,
+                                    center = vpos,
+                                    style = Stroke(width = 3f * scaleFactor)
+                                )
+                                repeat(4) { idx ->
+                                    val angle = (tickState * 0.02f + idx * Math.PI.toFloat() / 2f)
+                                    val bx = vpos.x + cos(angle) * radius * 0.8f
+                                    val by = vpos.y + sin(angle) * radius * 0.8f
+                                    drawLine(
+                                        color = Color(0xFF7E57C2),
+                                        start = vpos,
+                                        end = Offset(bx, by),
+                                        strokeWidth = 4f * scaleFactor
+                                    )
+                                }
+                            }
+                            // Yellow/Black warning stripe plates
+                            if (seed % 5 == 2 && !lowGraphicsMode) {
+                                val w = 60f * scaleFactor
+                                val h = 15f * scaleFactor
+                                val topLeftOffset = Offset(vpos.x - w / 2, vpos.y - h / 2)
+                                drawRect(
+                                    color = Color(0xFFE5C100),
+                                    topLeft = topLeftOffset,
+                                    size = Size(w, h)
+                                )
+                                var sx = 0f
+                                while (sx < w) {
+                                    drawLine(
+                                        color = Color(0xFF111111),
+                                        start = Offset(topLeftOffset.x + sx, topLeftOffset.y),
+                                        end = Offset(topLeftOffset.x + sx + 10f * scaleFactor, topLeftOffset.y + h),
+                                        strokeWidth = 3f * scaleFactor
+                                    )
+                                    sx += 15f * scaleFactor
+                                }
+                            }
+                        }
+                    }
+
                     val topLeft = worldToViewport(Vector2D(0f, 0f))
                     val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
                     drawRect(
@@ -316,8 +609,36 @@ fun GameScreen(
                 }
 
                 ArenaTheme.LAVA_WORLD -> {
-                    // Draw dark ground with orange pulsing hot fractures
-                    drawRect(color = Color(0xFF110707))
+                    // 1. Seamless high-fidelity volcanic wasteland background image tiling
+                    val tileSize = 200f
+                    val minTX = ((px - centerX / scaleFactor) / tileSize).toInt() - 1
+                    val maxTX = ((px + centerX / scaleFactor) / tileSize).toInt() + 1
+                    val minTY = ((py - centerY / scaleFactor) / tileSize).toInt() - 1
+                    val maxTY = ((py + centerY / scaleFactor) / tileSize).toInt() + 1
+
+                    for (tx in minTX..maxTX) {
+                        for (ty in minTY..maxTY) {
+                            val wx = tx * tileSize
+                            val wy = ty * tileSize
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val tileTopLeft = worldToViewport(Vector2D(wx, wy))
+                            val tileBottomRight = worldToViewport(Vector2D(wx + tileSize, wy + tileSize))
+                            
+                            val tileW = (tileBottomRight.x - tileTopLeft.x + 1f).toInt()
+                            val tileH = (tileBottomRight.y - tileTopLeft.y + 1f).toInt()
+                            if (tileW > 0 && tileH > 0) {
+                                drawImage(
+                                    image = volcanicWastelandBg,
+                                    srcOffset = androidx.compose.ui.unit.IntOffset.Zero,
+                                    srcSize = androidx.compose.ui.unit.IntSize(volcanicWastelandBg.width, volcanicWastelandBg.height),
+                                    dstOffset = androidx.compose.ui.unit.IntOffset(tileTopLeft.x.toInt(), tileTopLeft.y.toInt()),
+                                    dstSize = androidx.compose.ui.unit.IntSize(tileW, tileH)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // 2. Render glowing fault line cracks between basalt plates
                     val faultSpacing = 400f
                     var lx = fontSpacingAlign(px, centerX, faultSpacing)
                     val rX = px + centerX + faultSpacing
@@ -326,32 +647,212 @@ fun GameScreen(
                     while (lx <= rX) {
                         val vx = (lx - px) * scaleFactor + centerX
                         drawLine(
-                            color = Color(0xFFFF4500).copy(alpha = 0.2f + pulse * 0.4f),
+                            color = Color(0xFFFF3300).copy(alpha = 0.35f + pulse * 0.45f),
                             start = Offset(vx, 0f),
-                            end = Offset(vx + 150f, canvasHeight),
-                            strokeWidth = 6f
+                            end = Offset(vx + 150f * scaleFactor, canvasHeight),
+                            strokeWidth = 7f * scaleFactor
+                        )
+                        drawLine(
+                            color = Color(0xFFFFD54F).copy(alpha = 0.45f + pulse * 0.55f),
+                            start = Offset(vx, 0f),
+                            end = Offset(vx + 150f * scaleFactor, canvasHeight),
+                            strokeWidth = 2.2f * scaleFactor
                         )
                         lx += faultSpacing
                     }
 
-                    // Bounds
+                    // 3. Render Volcano Arena Elements: Lava Lakes, Active Volcanic Craters, Lava Rivers, Skulls
+                    val elementSpacing = 500f
+                    val minGX = ((px - centerX / scaleFactor) / elementSpacing).toInt() - 1
+                    val maxGX = ((px + centerX / scaleFactor) / elementSpacing).toInt() + 1
+                    val minGY = ((py - centerY / scaleFactor) / elementSpacing).toInt() - 1
+                    val maxGY = ((py + centerY / scaleFactor) / elementSpacing).toInt() + 1
+
+                    for (gx in minGX..maxGX) {
+                        for (gy in minGY..maxGY) {
+                            val wx = gx * elementSpacing
+                            val wy = gy * elementSpacing
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val vpos = worldToViewport(Vector2D(wx, wy))
+                            val seed = (gx * 19 + gy * 47) % 100
+
+                            // 3a. Molten Lava Lake
+                            if (seed % 4 == 0) {
+                                val baseRadius = (60f + seed % 15) * scaleFactor
+                                val bubblePulse = sin(tickState * 0.08f + seed) * 4f * scaleFactor
+                                
+                                drawCircle(
+                                    color = Color(0xFF211515),
+                                    radius = baseRadius + 12f * scaleFactor,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFFFF3300),
+                                    radius = baseRadius,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFFFF9100),
+                                    radius = baseRadius * 0.75f,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFFFFEA00).copy(alpha = 0.85f),
+                                    radius = baseRadius * 0.45f,
+                                    center = vpos
+                                )
+                                if (!lowGraphicsMode) {
+                                    // Rising heat bubbles
+                                    drawCircle(
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        radius = (6f * scaleFactor + bubblePulse).coerceAtLeast(0.1f),
+                                        center = Offset(vpos.x - baseRadius * 0.3f, vpos.y - baseRadius * 0.2f)
+                                    )
+                                    drawCircle(
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        radius = (4f * scaleFactor + bubblePulse * 0.5f).coerceAtLeast(0.1f),
+                                        center = Offset(vpos.x + baseRadius * 0.4f, vpos.y + baseRadius * 0.3f)
+                                    )
+                                }
+                            }
+                            
+                            // 3b. Active smoking volcanic vent/cone
+                            if (seed % 4 == 1) {
+                                val coneRad = 40f * scaleFactor
+                                drawCircle(
+                                    color = Color(0xFF1A0F0F),
+                                    radius = coneRad,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFF3E2723),
+                                    radius = coneRad * 0.82f,
+                                    center = vpos,
+                                    style = Stroke(width = 4f * scaleFactor)
+                                )
+                                val pulseVent = 1f + sin(tickState * 0.12f + seed) * 0.3f
+                                drawCircle(
+                                    color = Color(0xFFFF3300),
+                                    radius = coneRad * 0.4f * pulseVent,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFFFFEA00),
+                                    radius = coneRad * 0.22f,
+                                    center = vpos
+                                )
+                            }
+
+                            // 3c. Lava River/Stream flow path
+                            if (seed % 4 == 2 && !lowGraphicsMode) {
+                                val streamWidth = 80f * scaleFactor
+                                val streamHeight = 30f * scaleFactor
+                                drawArc(
+                                    color = Color(0xFFFF3300).copy(alpha = 0.7f),
+                                    startAngle = 45f,
+                                    sweepAngle = 180f,
+                                    useCenter = false,
+                                    topLeft = Offset(vpos.x - streamWidth/2, vpos.y - streamHeight/2),
+                                    size = Size(streamWidth, streamHeight),
+                                    style = Stroke(width = 12f * scaleFactor)
+                                )
+                                drawArc(
+                                    color = Color(0xFFFFEA00).copy(alpha = 0.85f),
+                                    startAngle = 45f,
+                                    sweepAngle = 180f,
+                                    useCenter = false,
+                                    topLeft = Offset(vpos.x - streamWidth/2, vpos.y - streamHeight/2),
+                                    size = Size(streamWidth, streamHeight),
+                                    style = Stroke(width = 4f * scaleFactor)
+                                )
+                            }
+
+                            // 3d. Scorched Ribs/Bones
+                            if (seed % 4 == 3) {
+                                val sizeBone = 35f * scaleFactor
+                                drawLine(
+                                    color = Color(0xFF7D6060),
+                                    start = Offset(vpos.x - sizeBone/2, vpos.y),
+                                    end = Offset(vpos.x + sizeBone/2, vpos.y),
+                                    strokeWidth = 3f * scaleFactor
+                                )
+                                repeat(3) { rIdx ->
+                                    val rx = vpos.x - sizeBone/2 + rIdx * (sizeBone/2f)
+                                    drawLine(
+                                        color = Color(0xFF7D6060),
+                                        start = Offset(rx, vpos.y - 10f * scaleFactor),
+                                        end = Offset(rx, vpos.y + 10f * scaleFactor),
+                                        strokeWidth = 2.5f * scaleFactor
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Bounds - Thick Volcanic Magma and Black Rock Walls
                     val topLeft = worldToViewport(Vector2D(0f, 0f))
                     val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    
+                    // Outer dark rocky border wall
                     drawRect(
-                        color = Color(0xFFFF5500),
+                        color = Color(0xFF1B0B0B),
                         topLeft = topLeft,
                         size = Size(
                             (bottomRight.x - topLeft.x),
                             (bottomRight.y - topLeft.y)
                         ),
-                        style = Stroke(width = 4f)
+                        style = Stroke(width = 12f * scaleFactor)
+                    )
+                    // Flowing Lava outer ring
+                    drawRect(
+                        color = Color(0xFFFF3300),
+                        topLeft = Offset(topLeft.x + 6f * scaleFactor, topLeft.y + 6f * scaleFactor),
+                        size = Size(
+                            (bottomRight.x - topLeft.x) - 12f * scaleFactor,
+                            (bottomRight.y - topLeft.y) - 12f * scaleFactor
+                        ),
+                        style = Stroke(width = 5f * scaleFactor)
+                    )
+                    // Inner glowing highlight
+                    drawRect(
+                        color = Color(0xFFFFEA00),
+                        topLeft = Offset(topLeft.x + 11f * scaleFactor, topLeft.y + 11f * scaleFactor),
+                        size = Size(
+                            (bottomRight.x - topLeft.x) - 22f * scaleFactor,
+                            (bottomRight.y - topLeft.y) - 22f * scaleFactor
+                        ),
+                        style = Stroke(width = 1.5f * scaleFactor)
                     )
                 }
 
                 ArenaTheme.FROZEN_ARENA -> {
-                    // Light icy backdrop
-                    drawRect(color = Color(0xFF04151F))
-                    val sheetSpacing = 200f
+                    // 1. Ice blue tile grid
+                    val tileSize = 200f
+                    val minTX = ((px - centerX / scaleFactor) / tileSize).toInt() - 1
+                    val maxTX = ((px + centerX / scaleFactor) / tileSize).toInt() + 1
+                    val minTY = ((py - centerY / scaleFactor) / tileSize).toInt() - 1
+                    val maxTY = ((py + centerY / scaleFactor) / tileSize).toInt() + 1
+
+                    for (tx in minTX..maxTX) {
+                        for (ty in minTY..maxTY) {
+                            val wx = tx * tileSize
+                            val wy = ty * tileSize
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val tileTopLeft = worldToViewport(Vector2D(wx, wy))
+                            val tileBottomRight = worldToViewport(Vector2D(wx + tileSize, wy + tileSize))
+                            
+                            // Multi-tone ice textures
+                            val color = if ((tx + ty) % 2 == 0) Color(0xFFE0F7FA) else Color(0xFFB2EBF2)
+                            drawRect(
+                                color = color,
+                                topLeft = tileTopLeft,
+                                size = Size(tileBottomRight.x - tileTopLeft.x + 1f, tileBottomRight.y - tileTopLeft.y + 1f)
+                            )
+                        }
+                    }
+
+                    // 2. Frost cracks/reflections on the ice
+                    val sheetSpacing = 300f
                     var lx = fontSpacingAlign(px, centerX, sheetSpacing)
                     val rX = px + centerX + sheetSpacing
                     val pulse = (sin(tickState * 0.04f) + 1f) / 2f
@@ -359,17 +860,131 @@ fun GameScreen(
                     while (lx <= rX) {
                         val vx = (lx - px) * scaleFactor + centerX
                         drawLine(
-                            color = Color(0x1F00E5FF).copy(alpha = 0.1f + pulse * 0.15f),
+                            color = Color.White.copy(alpha = 0.2f + pulse * 0.15f),
                             start = Offset(vx, 0f),
-                            end = Offset(vx - 50f, canvasHeight),
-                            strokeWidth = 2f
+                            end = Offset(vx - 100f * scaleFactor, canvasHeight),
+                            strokeWidth = 2.5f * scaleFactor
                         )
                         lx += sheetSpacing
                     }
 
-                    // Bounds
+                    // 3. Render Frost Bite Elements: Ice crystal spires, Snowy Pine Trees, Deep Blue pools, snow drifts
+                    val frostSpacing = 450f
+                    val minGX = ((px - centerX / scaleFactor) / frostSpacing).toInt() - 1
+                    val maxGX = ((px + centerX / scaleFactor) / frostSpacing).toInt() + 1
+                    val minGY = ((py - centerY / scaleFactor) / frostSpacing).toInt() - 1
+                    val maxGY = ((py + centerY / scaleFactor) / frostSpacing).toInt() + 1
+
+                    for (gx in minGX..maxGX) {
+                        for (gy in minGY..maxGY) {
+                            val wx = gx * frostSpacing
+                            val wy = gy * frostSpacing
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val vpos = worldToViewport(Vector2D(wx, wy))
+                            val seed = (gx * 31 + gy * 59) % 100
+
+                            // 3a. Deep Frozen Water Pool
+                            if (seed % 4 == 0) {
+                                val poolRad = (60f + seed % 15) * scaleFactor
+                                drawCircle(
+                                    color = Color(0xFFECEFF1),
+                                    radius = poolRad + 8f * scaleFactor,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFF0091EA),
+                                    radius = poolRad,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFF00E5FF),
+                                    radius = poolRad * 0.65f,
+                                    center = vpos
+                                )
+                            }
+
+                            // 3b. 3D Diamond Ice Spire / Crystal
+                            if (seed % 4 == 1) {
+                                val sizeCrys = 30f * scaleFactor
+                                // Draw left facet
+                                val leftFacet = Path().apply {
+                                    moveTo(vpos.x, vpos.y - sizeCrys)
+                                    lineTo(vpos.x - sizeCrys * 0.6f, vpos.y)
+                                    lineTo(vpos.x, vpos.y + sizeCrys)
+                                    close()
+                                }
+                                // Draw right facet
+                                val rightFacet = Path().apply {
+                                    moveTo(vpos.x, vpos.y - sizeCrys)
+                                    lineTo(vpos.x + sizeCrys * 0.6f, vpos.y)
+                                    lineTo(vpos.x, vpos.y + sizeCrys)
+                                    close()
+                                }
+                                drawPath(path = leftFacet, color = Color(0xFF80DEEA))
+                                drawPath(path = rightFacet, color = Color(0xFF4DD0E1))
+                                drawLine(
+                                    color = Color.White,
+                                    start = Offset(vpos.x, vpos.y - sizeCrys),
+                                    end = Offset(vpos.x, vpos.y + sizeCrys),
+                                    strokeWidth = 2.5f * scaleFactor
+                                )
+                            }
+
+                            // 3c. Beautiful Snowy Pine Tree
+                            if (seed % 4 == 2) {
+                                val treeH = 55f * scaleFactor
+                                val treeW = 35f * scaleFactor
+                                // Draw brown trunk
+                                drawRect(
+                                    color = Color(0xFF5D4037),
+                                    topLeft = Offset(vpos.x - 4f * scaleFactor, vpos.y),
+                                    size = Size(8f * scaleFactor, 15f * scaleFactor)
+                                )
+                                // Draw 3 overlapping triangular layers of branches
+                                repeat(3) { layer ->
+                                    val ly = vpos.y - layer * 14f * scaleFactor
+                                    val lw = treeW * (1.0f - layer * 0.25f)
+                                    val lh = treeH * 0.4f
+                                    val pinePath = Path().apply {
+                                        moveTo(vpos.x, ly - lh)
+                                        lineTo(vpos.x - lw / 2, ly)
+                                        lineTo(vpos.x + lw / 2, ly)
+                                        close()
+                                    }
+                                    drawPath(path = pinePath, color = Color(0xFF00796B))
+                                    // Snow cap
+                                    val snowPath = Path().apply {
+                                        moveTo(vpos.x, ly - lh)
+                                        lineTo(vpos.x - lw / 3, ly - lh * 0.3f)
+                                        lineTo(vpos.x + lw / 3, ly - lh * 0.3f)
+                                        close()
+                                    }
+                                    drawPath(path = snowPath, color = Color.White)
+                                }
+                            }
+
+                            // 3d. Fluffy Snowdrift / Mound
+                            if (seed % 4 == 3 && !lowGraphicsMode) {
+                                val snowRad = 24f * scaleFactor
+                                drawCircle(
+                                    color = Color.White,
+                                    radius = snowRad,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFFE0F7FA),
+                                    radius = snowRad * 0.8f,
+                                    center = Offset(vpos.x - 4f * scaleFactor, vpos.y - 3f * scaleFactor)
+                                )
+                            }
+                        }
+                    }
+
+                    // Bounds - Glacier Ice Borders
                     val topLeft = worldToViewport(Vector2D(0f, 0f))
                     val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    
+                    // Thick glacier wall
                     drawRect(
                         color = Color(0xFF00E5FF),
                         topLeft = topLeft,
@@ -377,45 +992,257 @@ fun GameScreen(
                             (bottomRight.x - topLeft.x),
                             (bottomRight.y - topLeft.y)
                         ),
-                        style = Stroke(width = 4f)
+                        style = Stroke(width = 12f * scaleFactor)
+                    )
+                    // Soft snowy cap border
+                    drawRect(
+                        color = Color.White,
+                        topLeft = Offset(topLeft.x + 8f * scaleFactor, topLeft.y + 8f * scaleFactor),
+                        size = Size(
+                            (bottomRight.x - topLeft.x) - 16f * scaleFactor,
+                            (bottomRight.y - topLeft.y) - 16f * scaleFactor
+                        ),
+                        style = Stroke(width = 4f * scaleFactor)
                     )
                 }
 
                 ArenaTheme.JUNGLE_TEMPLE -> {
-                    // Deep lush vegetation
-                    drawRect(color = Color(0xFF031005))
-                    val templeSpacing = 250f
+                    // 1. Lush grass tile checkerboard grid
+                    val tileSize = 150f
+                    val minTX = ((px - centerX / scaleFactor) / tileSize).toInt() - 1
+                    val maxTX = ((px + centerX / scaleFactor) / tileSize).toInt() + 1
+                    val minTY = ((py - centerY / scaleFactor) / tileSize).toInt() - 1
+                    val maxTY = ((py + centerY / scaleFactor) / tileSize).toInt() + 1
+
+                    for (tx in minTX..maxTX) {
+                        for (ty in minTY..maxTY) {
+                            val wx = tx * tileSize
+                            val wy = ty * tileSize
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val tileTopLeft = worldToViewport(Vector2D(wx, wy))
+                            val tileBottomRight = worldToViewport(Vector2D(wx + tileSize, wy + tileSize))
+                            
+                            // Multi-tone checkerboard grass grid
+                            val color = if ((tx + ty) % 2 == 0) Color(0xFF33691E) else Color(0xFF2E7D32)
+                            drawRect(
+                                color = color,
+                                topLeft = tileTopLeft,
+                                size = Size(tileBottomRight.x - tileTopLeft.x + 1f, tileBottomRight.y - tileTopLeft.y + 1f)
+                            )
+                        }
+                    }
+
+                    // 2. Subtle overgrown moss vines drifting vertically
+                    val templeSpacing = 350f
                     var lx = fontSpacingAlign(px, centerX, templeSpacing)
                     val rX = px + centerX + templeSpacing
 
                     while (lx <= rX) {
                         val vx = (lx - px) * scaleFactor + centerX
                         drawLine(
-                            color = Color(0x1F2E7D32),
+                            color = Color(0xFF1B5E20).copy(alpha = 0.25f),
                             start = Offset(vx, 0f),
-                            end = Offset(vx + 80f, canvasHeight),
-                            strokeWidth = 3f
+                            end = Offset(vx + 50f * scaleFactor, canvasHeight),
+                            strokeWidth = 3f * scaleFactor
                         )
                         lx += templeSpacing
                     }
 
-                    // Bounds
+                    // 3. Render Forest Ruins Elements: Overgrown Stone Ruins, Banyan Bush canopies, pools, runic stones, flowers
+                    val jungleSpacing = 450f
+                    val minGX = ((px - centerX / scaleFactor) / jungleSpacing).toInt() - 1
+                    val maxGX = ((px + centerX / scaleFactor) / jungleSpacing).toInt() + 1
+                    val minGY = ((py - centerY / scaleFactor) / jungleSpacing).toInt() - 1
+                    val maxGY = ((py + centerY / scaleFactor) / jungleSpacing).toInt() + 1
+
+                    for (gx in minGX..maxGX) {
+                        for (gy in minGY..maxGY) {
+                            val wx = gx * jungleSpacing
+                            val wy = gy * jungleSpacing
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val vpos = worldToViewport(Vector2D(wx, wy))
+                            val seed = (gx * 37 + gy * 73) % 100
+
+                            // 3a. Deep Temple Moss Water Pool
+                            if (seed % 5 == 0) {
+                                val pondRad = (55f + seed % 15) * scaleFactor
+                                drawCircle(
+                                    color = Color(0xFF4E342E), // Mud rim
+                                    radius = pondRad + 8f * scaleFactor,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFF1B5E20), // Algae/Moss rim
+                                    radius = pondRad + 3f * scaleFactor,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFF006064), // Deep pond water
+                                    radius = pondRad,
+                                    center = vpos
+                                )
+                                drawCircle(
+                                    color = Color(0xFF00838F), // Shallows
+                                    radius = pondRad * 0.6f,
+                                    center = vpos
+                                )
+                            }
+
+                            // 3b. Overgrown Aztec Stone Pillars / Ruins
+                            if (seed % 5 == 1) {
+                                val w = 55f * scaleFactor
+                                val h = 35f * scaleFactor
+                                // Grey brick background
+                                drawRect(
+                                    color = Color(0xFF546E7A),
+                                    topLeft = Offset(vpos.x - w/2, vpos.y - h/2),
+                                    size = Size(w, h)
+                                )
+                                // Inner crack highlight
+                                drawRect(
+                                    color = Color(0xFF78909C),
+                                    topLeft = Offset(vpos.x - w/2 + 2f * scaleFactor, vpos.y - h/2 + 2f * scaleFactor),
+                                    size = Size(w - 4f * scaleFactor, h - 4f * scaleFactor),
+                                    style = Stroke(width = 1.5f * scaleFactor)
+                                )
+                                // Overgrowing green vine lines
+                                drawLine(
+                                    color = Color(0xFF1B5E20),
+                                    start = Offset(vpos.x - w/2, vpos.y - h/4),
+                                    end = Offset(vpos.x + w/2, vpos.y + h/4),
+                                    strokeWidth = 3f * scaleFactor
+                                )
+                            }
+
+                            // 3c. Overlapping Bush / Banyan Leaf Canopy
+                            if (seed % 5 == 2) {
+                                val leafRad = 28f * scaleFactor
+                                // Shadow base
+                                drawCircle(
+                                    color = Color(0xFF1B5E20),
+                                    radius = leafRad * 1.3f,
+                                    center = vpos
+                                )
+                                // Main dark green leaf
+                                drawCircle(
+                                    color = Color(0xFF2E7D32),
+                                    radius = leafRad,
+                                    center = Offset(vpos.x - 8f * scaleFactor, vpos.y - 4f * scaleFactor)
+                                )
+                                // Highlight medium green leaf
+                                drawCircle(
+                                    color = Color(0xFF4CAF50),
+                                    radius = leafRad * 0.8f,
+                                    center = Offset(vpos.x + 8f * scaleFactor, vpos.y + 4f * scaleFactor)
+                                )
+                                // Pop light green leaf
+                                drawCircle(
+                                    color = Color(0xFF81C784),
+                                    radius = leafRad * 0.5f,
+                                    center = Offset(vpos.x, vpos.y - 10f * scaleFactor)
+                                )
+                            }
+
+                            // 3d. Standing Ancient Runic monolith stone
+                            if (seed % 5 == 3) {
+                                val stoneW = 20f * scaleFactor
+                                val stoneH = 45f * scaleFactor
+                                // Arch pillar
+                                drawRoundRect(
+                                    color = Color(0xFF455A64),
+                                    topLeft = Offset(vpos.x - stoneW/2, vpos.y - stoneH/2),
+                                    size = Size(stoneW, stoneH),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f * scaleFactor)
+                                )
+                                // Glowing runic glyph in neon green
+                                drawLine(
+                                    color = Color(0xFF69F0AE),
+                                    start = Offset(vpos.x, vpos.y - stoneH*0.3f),
+                                    end = Offset(vpos.x, vpos.y + stoneH*0.3f),
+                                    strokeWidth = 3f * scaleFactor
+                                )
+                            }
+
+                            // 3e. Exotic Tropical Flowers / Mushrooms
+                            if (seed % 5 == 4 && !lowGraphicsMode) {
+                                val sizeFl = 6f * scaleFactor
+                                // Draw a cluster of 3 flowers (red petals, yellow center)
+                                repeat(3) { fIdx ->
+                                    val fx = vpos.x + (fIdx - 1) * 14f * scaleFactor
+                                    val fy = vpos.y + (fIdx % 2) * 8f * scaleFactor
+                                    // Petals
+                                    drawCircle(
+                                        color = Color(0xFFE91E63),
+                                        radius = sizeFl,
+                                        center = Offset(fx, fy)
+                                    )
+                                    // Center
+                                    drawCircle(
+                                        color = Color(0xFFFFEB3B),
+                                        radius = sizeFl * 0.4f,
+                                        center = Offset(fx, fy)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Bounds - Jungle Canopy Enclosure
                     val topLeft = worldToViewport(Vector2D(0f, 0f))
                     val bottomRight = worldToViewport(Vector2D(engine.arenaWidth, engine.arenaHeight))
+                    
+                    // Mossy Stone border
                     drawRect(
-                        color = Color(0xFF4CAF50),
+                        color = Color(0xFF37474F),
                         topLeft = topLeft,
                         size = Size(
                             (bottomRight.x - topLeft.x),
                             (bottomRight.y - topLeft.y)
                         ),
-                        style = Stroke(width = 4f)
+                        style = Stroke(width = 12f * scaleFactor)
+                    )
+                    // Hanging Moss / Vines border highlight
+                    drawRect(
+                        color = Color(0xFF4CAF50),
+                        topLeft = Offset(topLeft.x + 8f * scaleFactor, topLeft.y + 8f * scaleFactor),
+                        size = Size(
+                            (bottomRight.x - topLeft.x) - 16f * scaleFactor,
+                            (bottomRight.y - topLeft.y) - 16f * scaleFactor
+                        ),
+                        style = Stroke(width = 3f * scaleFactor)
                     )
                 }
 
                 ArenaTheme.NEON_GRID -> {
-                    // Dark neon backdrop
-                    drawRect(color = Color(0xFF05010B))
+                    // Seamless high-fidelity Cyber-Neon City background image tiling
+                    val tileSize = 200f
+                    val minTX = ((px - centerX / scaleFactor) / tileSize).toInt() - 1
+                    val maxTX = ((px + centerX / scaleFactor) / tileSize).toInt() + 1
+                    val minTY = ((py - centerY / scaleFactor) / tileSize).toInt() - 1
+                    val maxTY = ((py + centerY / scaleFactor) / tileSize).toInt() + 1
+
+                    for (tx in minTX..maxTX) {
+                        for (ty in minTY..maxTY) {
+                            val wx = tx * tileSize
+                            val wy = ty * tileSize
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val tileTopLeft = worldToViewport(Vector2D(wx, wy))
+                            val tileBottomRight = worldToViewport(Vector2D(wx + tileSize, wy + tileSize))
+                            
+                            val tileW = (tileBottomRight.x - tileTopLeft.x + 1f).toInt()
+                            val tileH = (tileBottomRight.y - tileTopLeft.y + 1f).toInt()
+                            if (tileW > 0 && tileH > 0) {
+                                drawImage(
+                                    image = cyberNeonCityBg,
+                                    srcOffset = androidx.compose.ui.unit.IntOffset.Zero,
+                                    srcSize = androidx.compose.ui.unit.IntSize(cyberNeonCityBg.width, cyberNeonCityBg.height),
+                                    dstOffset = androidx.compose.ui.unit.IntOffset(tileTopLeft.x.toInt(), tileTopLeft.y.toInt()),
+                                    dstSize = androidx.compose.ui.unit.IntSize(tileW, tileH)
+                                )
+                            }
+                        }
+                    }
+
                     val gridSpacing = 150f
                     val startX = (px - centerX) - (px - centerX) % gridSpacing
                     val endX = (px + centerX) + gridSpacing
@@ -444,6 +1271,34 @@ fun GameScreen(
                             strokeWidth = 1f
                         )
                         y += gridSpacing
+                    }
+
+                    // Glowing neon digital corners/junctions
+                    val nodeSpacing = 300f
+                    val minGX = ((px - centerX / scaleFactor) / nodeSpacing).toInt() - 1
+                    val maxGX = ((px + centerX / scaleFactor) / nodeSpacing).toInt() + 1
+                    val minGY = ((py - centerY / scaleFactor) / nodeSpacing).toInt() - 1
+                    val maxGY = ((py + centerY / scaleFactor) / nodeSpacing).toInt() + 1
+
+                    for (gx in minGX..maxGX) {
+                        for (gy in minGY..maxGY) {
+                            val wx = gx * nodeSpacing
+                            val wy = gy * nodeSpacing
+                            if (wx < 0f || wx > engine.arenaWidth || wy < 0f || wy > engine.arenaHeight) continue
+                            val vpos = worldToViewport(Vector2D(wx, wy))
+                            val pulse = kotlin.math.abs(sin(tickState * 0.1f + gx + gy))
+                            
+                            drawCircle(
+                                color = Color(0xFF00E5FF).copy(alpha = 0.15f + pulse * 0.25f),
+                                radius = 6f * scaleFactor,
+                                center = vpos
+                            )
+                            drawCircle(
+                                color = Color(0xFF00E5FF),
+                                radius = 2.5f * scaleFactor,
+                                center = vpos
+                            )
+                        }
                     }
 
                     // Bounds
@@ -2421,6 +3276,36 @@ fun GameScreen(
                                         .testTag("save_settings_back")
                                 ) {
                                     Text("CONFIRM DEPLOY", color = Color.Black, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                TextButton(
+                                    onClick = {
+                                        isPaused = false
+                                        isSettingsOpenInPause = false
+                                        viewModel.finishActiveGameAndSave()
+                                        onNavigateBack()
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(45.dp)
+                                        .testTag("settings_quit_game_button")
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color(0xFFFF3366))
+                                        Text(
+                                            "QUIT ACTIVE MATCH",
+                                            color = Color(0xFFFF3366),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 11.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            letterSpacing = 1.sp
+                                        )
+                                    }
                                 }
                             }
                         }

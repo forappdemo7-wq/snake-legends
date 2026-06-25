@@ -116,12 +116,12 @@ data class Joystick(
 )
 
 enum class ArenaTheme(val displayName: String) {
-    CYBER_CITY("Cyber City"),
-    LAVA_WORLD("Lava World"),
-    FROZEN_ARENA("Frozen Arena"),
-    JUNGLE_TEMPLE("Jungle Temple"),
-    SPACE_STATION("Space Station"),
-    NEON_GRID("Neon Grid")
+    CYBER_CITY("Sand Pit"),
+    LAVA_WORLD("Volcanic Wasteland"),
+    FROZEN_ARENA("Frost Bite"),
+    JUNGLE_TEMPLE("Forest Ruins"),
+    SPACE_STATION("Deep Space Nebula"),
+    NEON_GRID("Cyber-Neon City")
 }
 
 data class Hazard(
