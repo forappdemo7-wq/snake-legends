@@ -695,7 +695,7 @@ class GameEngine {
                 }
                 player.angle += (diff * turnSpeed)
             }
-            player.isBoosting = isBoosting && player.length > 5 && !player.isEmped && !player.isFrozen
+            player.isBoosting = isBoosting && player.length >= 4 && !player.isEmped && !player.isFrozen
 
             // Speed calculation - augmented by boosts and debuffs
             var targetSpeed = if (player.isBoosting) 7.5f else 4.0f
@@ -724,14 +724,12 @@ class GameEngine {
             val dirY = sin(player.angle.toDouble()).toFloat()
             player.position = player.position + Vector2D(dirX * player.speed, dirY * player.speed)
 
-            // Length management on boosting
-            if (player.isBoosting && Random.nextInt(12) == 0 && player.length > 5) {
-                player.length--
+            // Length management on boosting (Score-based decay like slither.io/snake.io)
+            if (player.isBoosting && Random.nextInt(10) == 0 && player.score > 15) {
+                player.score = maxOf(0, player.score - 3)
+                player.length = 4 + (player.score / 25)
                 val lastSeg = player.body.lastOrNull() ?: player.position
-                orbs.add(Orb(UUID.randomUUID().toString(), lastSeg, 5f, player.primaryColor, 4, false))
-                if (player.body.size > player.length) {
-                    player.body.removeAt(player.body.lastIndex)
-                }
+                orbs.add(Orb(UUID.randomUUID().toString(), lastSeg, 6f, player.primaryColor, 4, false))
             }
 
             // Save history with spacing
@@ -868,7 +866,7 @@ class GameEngine {
             }
 
             // Randomly enable boosting
-            if (Random.nextInt(50) == 0 && snake.length > 8 && !snake.isFrozen && !snake.isEmped) {
+            if (Random.nextInt(50) == 0 && snake.length > 5 && !snake.isFrozen && !snake.isEmped) {
                 snake.isBoosting = !snake.isBoosting
             }
 
@@ -894,7 +892,34 @@ class GameEngine {
             val bDirY = sin(snake.angle.toDouble()).toFloat()
             snake.position = snake.position + Vector2D(bDirX * snake.speed, bDirY * snake.speed)
 
+            // Length management on boosting (Score-based decay for bot trails)
+            if (snake.isBoosting && Random.nextInt(12) == 0 && snake.score > 20) {
+                snake.score = maxOf(0, snake.score - 3)
+                snake.length = 4 + (snake.score / 25)
+                val lastSeg = snake.body.lastOrNull() ?: snake.position
+                orbs.add(Orb(UUID.randomUUID().toString(), lastSeg, 5f, snake.primaryColor, 4, false))
+            }
+
             updateBodySegments(snake)
+
+            // Spawn fine-grain particle sparks on bot boost trails
+            if (snake.isBoosting && Random.nextInt(2) == 0) {
+                val randVal = Random.nextInt(3)
+                val isNebulaPuff = randVal == 0
+                val isStarGlitter = randVal == 1
+                particles.add(
+                    Particle(
+                        position = snake.position,
+                        velocity = Vector2D(-bDirX * 2.5f + (Random.nextFloat() * 1.5f - 0.75f), -bDirY * 2.5f + (Random.nextFloat() * 1.5f - 0.75f)),
+                        color = if (isStarGlitter) Color.White else snake.primaryColor,
+                        alpha = 1.0f,
+                        fadeSpeed = if (isNebulaPuff) 0.04f else 0.08f,
+                        size = if (isNebulaPuff) 8f else (if (isStarGlitter) 5f else 6f),
+                        isStar = isStarGlitter,
+                        isNebula = isNebulaPuff
+                    )
+                )
+            }
 
             if (snake.activePowerUpType == PowerUpType.GHOST) {
                 if (snake.position.x < 0) {
@@ -960,7 +985,8 @@ class GameEngine {
         // 11. Food Eating Check
         val eatenOrbIds = mutableListOf<String>()
         for (orb in orbs) {
-            if (player.isAlive && player.position.distance(orb.position) < 32f) {
+            val pEatingDist = (15f * player.thicknessFactor) + 12f
+            if (player.isAlive && player.position.distance(orb.position) < pEatingDist) {
                 val multiplier = if (player.activePowerUpType == PowerUpType.DOUBLE_POINTS) 2 else 1
                 player.score += orb.points * multiplier
                 player.length = 4 + (player.score / 25)
@@ -1013,7 +1039,8 @@ class GameEngine {
             // Check if bots eat
             for (snake in snakes) {
                 if (snake.isPlayer || !snake.isAlive) continue
-                if (snake.position.distance(orb.position) < 32f) {
+                val sEatingDist = (15f * snake.thicknessFactor) + 12f
+                if (snake.position.distance(orb.position) < sEatingDist) {
                     val multiplier = if (snake.activePowerUpType == PowerUpType.DOUBLE_POINTS) 2 else 1
                     snake.score += orb.points * multiplier
                     snake.length = 4 + (snake.score / 25)

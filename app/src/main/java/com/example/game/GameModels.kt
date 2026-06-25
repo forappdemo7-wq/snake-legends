@@ -74,7 +74,7 @@ data class Snake(
     var empTimer: Int = 0
 ) {
     val thicknessFactor: Float
-        get() = (1.0f + kotlin.math.sqrt(score.toFloat().coerceAtLeast(0f)) * 0.035f).coerceAtMost(3.5f)
+        get() = (1.0f + kotlin.math.sqrt(score.toFloat().coerceAtLeast(0f)) * 0.085f).coerceAtMost(6.5f)
 }
 
 data class Orb(

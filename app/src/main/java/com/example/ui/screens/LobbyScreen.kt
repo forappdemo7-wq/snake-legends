@@ -72,7 +72,8 @@ fun LobbyScreen(
     viewModel: GameViewModel,
     onNavigateToShop: () -> Unit,
     onNavigateToClans: () -> Unit,
-    onNavigateToLeaderboard: () -> Unit
+    onNavigateToLeaderboard: () -> Unit,
+    onNavigateToSkinLocker: () -> Unit
 ) {
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val matchRecords by viewModel.matchRecords.collectAsStateWithLifecycle()
@@ -157,8 +158,7 @@ fun LobbyScreen(
                     when (tab) {
                         "HOME" -> { /* Default active view */ }
                         "SNAKES" -> {
-                            editedName = userProfile?.username ?: ""
-                            showEditNameDialog = true
+                            onNavigateToSkinLocker()
                         }
                         "EVENTS" -> {
                             showMultiplayerSettings = true

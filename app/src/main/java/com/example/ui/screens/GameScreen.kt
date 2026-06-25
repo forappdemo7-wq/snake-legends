@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -57,10 +58,24 @@ fun GameScreen(
 
     var tickState by remember { mutableStateOf(0) }
     var isWideViewportMode by remember { mutableStateOf(false) }
-    val targetScale = if (isWideViewportMode) 0.58f else 1.0f
+
+    // Floating touch inputs
+    var joystickAngle by remember { mutableStateOf<Float?>(null) }
+    var isBoosting by remember { mutableStateOf(false) }
+    val boostButtonScale by animateFloatAsState(
+        targetValue = if (isBoosting) 1.15f else 1.0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "boostScale"
+    )
+    var triggerAbility by remember { mutableStateOf(false) }
+
+    val player = engine.playerSnake
+    val playerThickness = player?.thicknessFactor ?: 1.0f
+    val zoomSizeMultiplier = 1.0f / (1.0f + (playerThickness - 1.0f) * 0.22f)
+    val targetScale = (if (isWideViewportMode) 0.58f else 1.0f) * (if (isBoosting) 0.82f else 1.0f) * zoomSizeMultiplier
     val scaleFactor by animateFloatAsState(
         targetValue = targetScale,
-        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
         label = "viewportScaleAnim"
     )
     var isPaused by remember { mutableStateOf(false) }
@@ -69,11 +84,6 @@ fun GameScreen(
     var isSettingsOpenInPause by remember { mutableStateOf(false) }
     var showSecurityTerminalInPause by remember { mutableStateOf(false) }
     var soundVolumeFraction by remember { mutableStateOf(0.8f) }
-
-    // Floating touch inputs
-    var joystickAngle by remember { mutableStateOf<Float?>(null) }
-    var isBoosting by remember { mutableStateOf(false) }
-    var triggerAbility by remember { mutableStateOf(false) }
 
     // Run custom high-performance game tick loop synced directly with coroutine clock (60 ticks / frames per second)
     LaunchedEffect(isPaused) {
@@ -115,8 +125,6 @@ fun GameScreen(
             delay(16) // ~60 FPS update constraints
         }
     }
-
-    val player = engine.playerSnake
 
     Box(
         modifier = Modifier
@@ -931,6 +939,42 @@ fun GameScreen(
                     )
                 }
             }
+
+            // 1.1 Boosting vignette edge glow & speed-lines effect
+            if (isBoosting) {
+                // Outer vignette red-orange aura
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color.Transparent, Color(0xFFFF3366).copy(alpha = 0.15f)),
+                        center = Offset(centerX, centerY),
+                        radius = maxOf(canvasWidth, canvasHeight) * 0.7f
+                    ),
+                    size = size
+                )
+                
+                // Custom wind stream speed lines flying towards the center or past the screen!
+                if (!lowGraphicsMode) {
+                    val random = kotlin.random.Random(1337)
+                    for (i in 0 until 18) {
+                        val angle = random.nextFloat() * 2f * Math.PI.toFloat()
+                        val speedFactor = 15f
+                        val baseDist = (random.nextFloat() * 500f + 200f)
+                        val offsetDist = (baseDist + (tickState * speedFactor)) % 800f
+                        
+                        val startX = centerX + cos(angle.toDouble()).toFloat() * offsetDist
+                        val startY = centerY + sin(angle.toDouble()).toFloat() * offsetDist
+                        val endX = centerX + cos(angle.toDouble()).toFloat() * (offsetDist + 40f)
+                        val endY = centerY + sin(angle.toDouble()).toFloat() * (offsetDist + 40f)
+                        
+                        drawLine(
+                            color = Color(0xFFFFDD44).copy(alpha = (1f - (offsetDist / 800f)).coerceIn(0f, 0.4f)),
+                            start = Offset(startX, startY),
+                            end = Offset(endX, endY),
+                            strokeWidth = 2f
+                        )
+                    }
+                }
+            }
         }
 
         // 2. HUD Interface Elements Overlay
@@ -1597,21 +1641,22 @@ fun GameScreen(
                 // DYNAMIC BOOST / SPEED ACTION BUTTON
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .graphicsLayer(scaleX = boostButtonScale, scaleY = boostButtonScale)
+                        .size(76.dp)
                         .testTag("boost_dash_button")
                         .clip(CircleShape)
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    if (isBoosting) Color(0xFFFFFF33) else Color(0xFFFF3366),
-                                    Color.Black
+                                    if (isBoosting) Color(0xFFFACC15) else Color(0xFFFF3366),
+                                    Color.Black.copy(alpha = 0.85f)
                                 )
                             )
                         )
                         .border(
-                            3.dp,
-                            if (isBoosting) Color(0xFFFFFF33) else Color(0xFFFF3366),
-                            CircleShape
+                            width = if (isBoosting) 4.dp else 3.dp,
+                            color = if (isBoosting) Color(0xFFFACC15) else Color(0xFFFF3366),
+                            shape = CircleShape
                         )
                         .pointerInteropFilter { event ->
                             when (event.action) {
@@ -1626,7 +1671,7 @@ fun GameScreen(
                         imageVector = Icons.Default.Speed,
                         contentDescription = "DASH BOOST ACTIVE",
                         tint = if (isBoosting) Color.Black else Color.White,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                 }
             }
