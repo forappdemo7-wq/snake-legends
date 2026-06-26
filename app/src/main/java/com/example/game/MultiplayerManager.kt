@@ -87,6 +87,9 @@ class MultiplayerManager {
     // Peer snake data (synchronized map)
     val peerSnakes: MutableMap<String, PeerSnakeData> = mutableMapOf()
 
+    // Authoritative Server Reference
+    var authoritativeServer: com.example.server.GameServer? = null
+
     // Internal state
     private var socket: Socket? = null
     private var networkJob: Job? = null
@@ -306,8 +309,24 @@ class MultiplayerManager {
         body: List<Vector2D>,
         isAlive: Boolean = true,
         primaryHex: String = "#00FFCC",
-        secondaryHex: String = "#0099FF"
+        secondaryHex: String = "#0099FF",
+        triggerAbility: Boolean = false
     ) {
+        val server = authoritativeServer
+        if (server != null) {
+            val inputPacket = com.example.server.ClientInputPacket(
+                tickNumber = System.currentTimeMillis() / 33,
+                playerId = "player_local",
+                joystickAngle = angle,
+                isBoosting = isBoosting,
+                triggerAbility = triggerAbility,
+                timestamp = System.currentTimeMillis(),
+                signature = ""
+            )
+            server.submitPlayerInput("player_local", inputPacket)
+            return
+        }
+
         val socketRef = socket
         if (socketRef != null && socketRef.connected() && !isEmulated) {
             try {
@@ -398,6 +417,8 @@ class MultiplayerManager {
     }
 
     fun disconnect() {
+        authoritativeServer?.stopServer()
+        authoritativeServer = null
         networkJob?.cancel()
         networkJob = null
         socket?.disconnect()

@@ -1351,4 +1351,91 @@ class GameEngine {
     private fun triggerHaptic(type: String) {
         onHapticTrigger?.invoke(type)
     }
+
+    fun syncWithServerSnapshot(snapshot: com.example.server.ServerStateSnapshot) {
+        synchronized(snakes) {
+            snakes.clear()
+            snapshot.snakes.forEach { sState ->
+                val primaryColorVal = try {
+                    Color(android.graphics.Color.parseColor(sState.primaryColorHex))
+                } catch (e: Exception) {
+                    Color(0xFF00FFCC)
+                }
+                val secondaryColorVal = try {
+                    Color(android.graphics.Color.parseColor(sState.secondaryColorHex))
+                } catch (e: Exception) {
+                    Color(0xFF0099FF)
+                }
+                
+                val snake = Snake(
+                    id = sState.id,
+                    name = sState.name,
+                    isPlayer = sState.id == "player_local",
+                    isAlive = sState.isAlive,
+                    position = sState.position,
+                    angle = sState.angle,
+                    speed = sState.speed,
+                    length = sState.length,
+                    score = sState.score,
+                    primaryColor = primaryColorVal,
+                    secondaryColor = secondaryColorVal,
+                    isBoosting = sState.isBoosting,
+                    activePowerUpType = sState.activePowerUpType,
+                    powerUpTimer = sState.powerUpTimer
+                )
+                sState.body.forEach { seg ->
+                    snake.body.add(seg)
+                }
+                snakes.add(snake)
+                if (sState.id == "player_local") {
+                    playerSnake = snake
+                    isGameOver = !sState.isAlive
+                }
+            }
+            
+            orbs.clear()
+            snapshot.orbs.forEach { oState ->
+                val colorVal = try {
+                    Color(android.graphics.Color.parseColor(oState.colorHex))
+                } catch (e: Exception) {
+                    Color(0xFF00FFCC)
+                }
+                orbs.add(
+                    Orb(
+                        id = oState.id,
+                        position = oState.position,
+                        size = if (oState.isCelestial) 14f else if (oState.isSuper) 10f else 6f,
+                        color = colorVal,
+                        points = oState.points,
+                        isSuperOrb = oState.isSuper,
+                        isCelestialOrb = oState.isCelestial
+                    )
+                )
+            }
+            
+            powerUps.clear()
+            snapshot.powerUps.forEach { pState ->
+                val colorVal = try {
+                    Color(android.graphics.Color.parseColor(pState.colorHex))
+                } catch (e: Exception) {
+                    Color(0xFF00FFCC)
+                }
+                powerUps.add(
+                    PowerUp(
+                        id = pState.id,
+                        position = pState.position,
+                        type = pState.type,
+                        color = colorVal
+                    )
+                )
+            }
+            
+            activeEventName = snapshot.activeEvent
+            safeZoneRadius = snapshot.safeZoneRadius
+            alivePlayersCount = snakes.filter { it.isAlive }.size
+            val ranked = snakes.map { Pair(it.name, it.score) }.sortedByDescending { it.second }
+            rankingList.clear()
+            rankingList.addAll(ranked.take(10))
+        }
+    }
 }

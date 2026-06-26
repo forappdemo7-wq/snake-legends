@@ -96,35 +96,53 @@ fun GameScreen(
     LaunchedEffect(isPaused) {
         while (isActive) {
             if (!isPaused && !engine.isGameOver) {
-                // Sync multiplayer peers from Socket.IO layer
-                engine.syncMultiplayerSnakes(viewModel.multiplayerManager.peerSnakes)
-
-                engine.onTick(
-                    joystickAngle = joystickAngle,
-                    isBoosting = isBoosting,
-                    abilityTriggered = triggerAbility
-                )
-                if (triggerAbility) {
-                    triggerAbility = false // consumer reset
-                }
-
-                // Broadcast local coordinates to Socket.IO room relay
-                engine.playerSnake?.let { p ->
-                    val primHex = String.format("#%02X%02X%02X", (p.primaryColor.red * 255).toInt(), (p.primaryColor.green * 255).toInt(), (p.primaryColor.blue * 255).toInt())
-                    val secHex = String.format("#%02X%02X%02X", (p.secondaryColor.red * 255).toInt(), (p.secondaryColor.green * 255).toInt(), (p.secondaryColor.blue * 255).toInt())
+                if (viewModel.multiplayerManager.authoritativeServer != null) {
+                    // SERVER-AUTHORITATIVE MULTIPLAYER: Send inputs ONLY. Server simulates physics and broadcasts snapshots
                     viewModel.multiplayerManager.broadcastPlayerPos(
-                        x = p.position.x,
-                        y = p.position.y,
-                        angle = p.angle,
-                        speed = p.speed,
-                        length = p.length,
-                        score = p.score,
-                        isBoosting = p.isBoosting,
-                        body = p.body,
-                        isAlive = p.isAlive,
-                        primaryHex = primHex,
-                        secondaryHex = secHex
+                        x = 0f,
+                        y = 0f,
+                        angle = joystickAngle ?: (engine.playerSnake?.angle ?: 0f),
+                        speed = 0f,
+                        length = 0,
+                        score = 0,
+                        isBoosting = isBoosting,
+                        body = emptyList(),
+                        triggerAbility = triggerAbility
                     )
+                    if (triggerAbility) {
+                        triggerAbility = false // consumer reset
+                    }
+                } else {
+                    // CLIENT-AUTHORITATIVE FALLBACK
+                    engine.syncMultiplayerSnakes(viewModel.multiplayerManager.peerSnakes)
+
+                    engine.onTick(
+                        joystickAngle = joystickAngle,
+                        isBoosting = isBoosting,
+                        abilityTriggered = triggerAbility
+                    )
+                    if (triggerAbility) {
+                        triggerAbility = false // consumer reset
+                    }
+
+                    // Broadcast local coordinates to Socket.IO room relay
+                    engine.playerSnake?.let { p ->
+                        val primHex = String.format("#%02X%02X%02X", (p.primaryColor.red * 255).toInt(), (p.primaryColor.green * 255).toInt(), (p.primaryColor.blue * 255).toInt())
+                        val secHex = String.format("#%02X%02X%02X", (p.secondaryColor.red * 255).toInt(), (p.secondaryColor.green * 255).toInt(), (p.secondaryColor.blue * 255).toInt())
+                        viewModel.multiplayerManager.broadcastPlayerPos(
+                            x = p.position.x,
+                            y = p.position.y,
+                            angle = p.angle,
+                            speed = p.speed,
+                            length = p.length,
+                            score = p.score,
+                            isBoosting = p.isBoosting,
+                            body = p.body,
+                            isAlive = p.isAlive,
+                            primaryHex = primHex,
+                            secondaryHex = secHex
+                        )
+                    }
                 }
 
                 tickState++

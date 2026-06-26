@@ -74,12 +74,23 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 p.primaryColor = getPrimaryColorForSkin(skin)
                 p.secondaryColor = getSecondaryColorForSkin(skin)
             }
+
+            // Launch Authoritative Game Server
+            val server = com.example.server.GameServer()
+            multiplayerManager.disconnect() // Clean any previous session
+            multiplayerManager.authoritativeServer = server
+            server.joinPlayerSession("player_local", user?.username ?: "Player")
+            server.registerSnapshotListener { snapshot ->
+                gameEngine.syncWithServerSnapshot(snapshot)
+            }
+            server.startServer()
             
             _isGameActive.value = true
         }
     }
 
     fun cancelActiveGame() {
+        multiplayerManager.disconnect()
         _isGameActive.value = false
     }
 
@@ -104,6 +115,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             // Re-verify achievement progress directly on successful save
             checkAchievementsState(score, placement, mode)
 
+            multiplayerManager.disconnect()
             _isGameActive.value = false
         }
     }
