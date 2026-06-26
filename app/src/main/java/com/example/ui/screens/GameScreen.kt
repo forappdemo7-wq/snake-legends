@@ -49,6 +49,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.math.atan2
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalTextApi::class)
 @Composable
@@ -68,6 +73,8 @@ fun GameScreen(
 
     // Floating touch inputs
     var joystickAngle by remember { mutableStateOf<Float?>(null) }
+    var joystickCenter by remember { mutableStateOf<Offset?>(null) }
+    var joystickTouch by remember { mutableStateOf<Offset?>(null) }
     var isBoosting by remember { mutableStateOf(false) }
     val boostButtonScale by animateFloatAsState(
         targetValue = if (isBoosting) 1.15f else 1.0f,
@@ -2401,17 +2408,98 @@ fun GameScreen(
                 }
             }
 
-            // VIRTUAL FLOATING JOYSTICK
+            // VIRTUAL FLOATING JOYSTICK TOUCH SURFACE
             Box(
                 modifier = Modifier
+                    .fillMaxHeight(0.75f)
+                    .fillMaxWidth(0.55f)
                     .align(if (joystickOnRightSide) Alignment.BottomEnd else Alignment.BottomStart)
-                    .offset(
-                        x = if (joystickOnRightSide) (-10).dp else 10.dp,
-                        y = (-10).dp
+                    .pointerInput(joystickOnRightSide) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val initialPos = down.position
+                                joystickCenter = initialPos
+                                joystickTouch = initialPos
+                                
+                                drag(down.id) { change ->
+                                    change.consume()
+                                    joystickTouch = change.position
+                                    val diffX = change.position.x - initialPos.x
+                                    val diffY = change.position.y - initialPos.y
+                                    if (diffX != 0f || diffY != 0f) {
+                                        joystickAngle = atan2(diffY, diffX)
+                                    }
+                                }
+                                
+                                joystickCenter = null
+                                joystickTouch = null
+                            }
+                        }
+                    }
+            )
+
+            // RENDER THE FLOATING JOYSTICK VISUALS
+            joystickCenter?.let { center ->
+                val touch = joystickTouch ?: center
+                val diff = touch - center
+                val dist = sqrt(diff.x * diff.x + diff.y * diff.y)
+                val maxRadiusPx = with(LocalDensity.current) { 55.dp.toPx() }
+                val clampedOffset = if (dist > maxRadiusPx) {
+                    val angle = atan2(diff.y, diff.x)
+                    Offset(cos(angle) * maxRadiusPx, sin(angle) * maxRadiusPx)
+                } else {
+                    diff
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .offset(
+                            x = with(LocalDensity.current) { (center.x - 65.dp.toPx()).toDp() },
+                            y = with(LocalDensity.current) { (center.y - 65.dp.toPx()).toDp() }
+                        )
+                        .size(130.dp)
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val cX = size.width / 2f
+                        val cY = size.height / 2f
+                        drawCircle(
+                            color = Color(0x2200FFCC),
+                            radius = cX
+                        )
+                        drawCircle(
+                            color = Color(0x6600FFCC),
+                            radius = cX,
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+                        for (i in 0 until 8) {
+                            val a = i * (6.28f / 8f)
+                            val rOuter = cX
+                            val rInner = rOuter - 8.dp.toPx()
+                            drawLine(
+                                color = Color(0x5500FFCC),
+                                start = Offset(cX + rInner * cos(a), cY + rInner * sin(a)),
+                                end = Offset(cX + rOuter * cos(a), cY + rOuter * sin(a)),
+                                strokeWidth = 2.dp.toPx()
+                            )
+                        }
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .offset(
+                                x = with(LocalDensity.current) { (clampedOffset.x + 65.dp.toPx() - 22.dp.toPx()).toDp() },
+                                y = with(LocalDensity.current) { (clampedOffset.y + 65.dp.toPx() - 22.dp.toPx()).toDp() }
+                            )
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(Color(0xFF00FFCC), Color(0xFF0099FF))
+                                )
+                            )
+                            .border(2.dp, Color.White, CircleShape)
                     )
-            ) {
-                VirtualJoystick { angle, _ ->
-                    joystickAngle = angle
                 }
             }
 
