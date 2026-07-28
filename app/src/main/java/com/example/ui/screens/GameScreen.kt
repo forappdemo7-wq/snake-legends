@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.audio.SoundEngine
 import com.example.game.*
 import com.example.ui.components.GlassmorphicCard
 import com.example.ui.components.GlowButton
@@ -155,6 +156,17 @@ fun GameScreen(
                 tickState++
             }
             delay(16) // ~60 FPS update constraints
+        }
+    }
+
+    DisposableEffect(engine.arenaTheme, isPaused) {
+        if (!isPaused) {
+            SoundEngine.startBackgroundMusic(engine.arenaTheme)
+        } else {
+            SoundEngine.stopBackgroundMusic()
+        }
+        onDispose {
+            SoundEngine.stopBackgroundMusic()
         }
     }
 
@@ -1485,12 +1497,21 @@ fun GameScreen(
 
             // Draw Orbs
             for (orb in engine.orbs) {
-                val viewportPos = worldToViewport(orb.position)
+                val floatY = sin((tickState * 0.12f + orb.position.x * 0.05f).toDouble()).toFloat() * 2.2f * scaleFactor
+                val baseViewportPos = worldToViewport(orb.position)
+                val viewportPos = Offset(baseViewportPos.x, baseViewportPos.y + floatY)
                 val rad = orb.size * scaleFactor
 
                 if (viewportPos.x >= -rad && viewportPos.x <= canvasWidth + rad &&
                     viewportPos.y >= -rad && viewportPos.y <= canvasHeight + rad
                 ) {
+                    // Orb ground shadow
+                    drawCircle(
+                        color = Color.Black.copy(alpha = 0.22f),
+                        radius = rad * 0.9f,
+                        center = Offset(viewportPos.x + 2f * scaleFactor, viewportPos.y + 3f * scaleFactor)
+                    )
+
                     if (orb.isCelestialOrb) {
                         // Pulsing, shifting dual halo
                         val pulse = 1f + (sin(tickState * 0.15f) + 1f) / 2f * 0.35f
@@ -1507,8 +1528,9 @@ fun GameScreen(
                         )
                     } else {
                         // Outer glow
+                        val pulseGlow = if (orb.isSuperOrb) (sin(tickState * 0.15f) + 1f) * 0.15f else 0f
                         drawCircle(
-                            color = orb.color.copy(alpha = 0.25f),
+                            color = orb.color.copy(alpha = 0.28f + pulseGlow),
                             radius = rad * 2.2f,
                             center = viewportPos
                         )
@@ -1521,9 +1543,9 @@ fun GameScreen(
                     )
                     // Core highlight
                     drawCircle(
-                        color = Color.White,
-                        radius = rad * 0.4f,
-                        center = viewportPos
+                        color = Color.White.copy(alpha = 0.85f),
+                        radius = rad * 0.45f,
+                        center = Offset(viewportPos.x - rad * 0.25f, viewportPos.y - rad * 0.25f)
                     )
                 }
             }
@@ -1606,6 +1628,23 @@ fun GameScreen(
                         val scaleRatio = (1f - (i.toFloat() / snake.body.size.toFloat()) * 0.4f)
                         val rad = (11f * scaleRatio * snake.thicknessFactor) * scaleFactor
 
+                        // 3D Drop Shadow on ground
+                        drawCircle(
+                            color = Color.Black.copy(alpha = 0.25f),
+                            radius = rad * 1.05f,
+                            center = Offset(viewPos.x + 3f * scaleFactor, viewPos.y + 4f * scaleFactor)
+                        )
+
+                        // Boosting flame / energy aura behind body
+                        if (snake.isBoosting) {
+                            val boostPulse = (sin(tickState * 0.3f + i) + 1f) / 2f
+                            drawCircle(
+                                color = Color(0xFFFF5722).copy(alpha = 0.35f + boostPulse * 0.25f),
+                                radius = rad * 1.5f,
+                                center = viewPos
+                            )
+                        }
+
                         val primaryColor = if (snake.activePowerUpType == PowerUpType.GHOST) Color.White.copy(alpha = 0.35f) else snake.primaryColor
                         val secondaryColor = if (snake.activePowerUpType == PowerUpType.GHOST) Color(0xFF90A4AE).copy(alpha = 0.2f) else snake.secondaryColor
 
@@ -1621,11 +1660,21 @@ fun GameScreen(
                             center = viewPos
                         )
 
+                        // Alternating scale pattern accent on body segments
+                        if (i % 4 == 0) {
+                            drawCircle(
+                                color = secondaryColor.copy(alpha = 0.6f),
+                                radius = rad * 0.65f,
+                                center = viewPos,
+                                style = Stroke(width = 1.8f * scaleFactor)
+                            )
+                        }
+
                         // Light shine scale dot
                         drawCircle(
-                            color = Color.White.copy(alpha = 0.15f),
-                            radius = rad * 0.4f,
-                            center = viewPos - Offset(rad * 0.2f, rad * 0.2f)
+                            color = Color.White.copy(alpha = 0.25f),
+                            radius = rad * 0.35f,
+                            center = Offset(viewPos.x - rad * 0.25f, viewPos.y - rad * 0.25f)
                         )
                     }
                 }
@@ -1633,6 +1682,23 @@ fun GameScreen(
                 // Render Head
                 val headPos = worldToViewport(snake.position)
                 val headRad = 15f * scaleFactor * snake.thicknessFactor
+
+                // Head ground shadow
+                drawCircle(
+                    color = Color.Black.copy(alpha = 0.3f),
+                    radius = headRad * 1.1f,
+                    center = Offset(headPos.x + 3.5f * scaleFactor, headPos.y + 4.5f * scaleFactor)
+                )
+
+                // Boosting head aura glow
+                if (snake.isBoosting) {
+                    val boostGlow = (sin(tickState * 0.35f) + 1f) / 2f
+                    drawCircle(
+                        color = Color(0xFFFF9800).copy(alpha = 0.4f + boostGlow * 0.3f),
+                        radius = headRad * 1.8f,
+                        center = headPos
+                    )
+                }
 
                 // Draw Head Outer Shell
                 val headColor = if (snake.activePowerUpType == PowerUpType.GHOST) Color.White.copy(alpha = 0.45f) else snake.primaryColor

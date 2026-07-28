@@ -53,7 +53,10 @@ fun InteractiveGameBottomBar(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (isActive) Color(0xFF131F3F) else Color.Transparent)
-                        .clickable { onTabSelected(tabId) }
+                        .clickable { 
+                            com.example.audio.SoundEngine.playPowerUpSound()
+                            onTabSelected(tabId) 
+                        }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center

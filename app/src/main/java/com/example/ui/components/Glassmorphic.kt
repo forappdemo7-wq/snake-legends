@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.view.MotionEvent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -10,28 +11,28 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType   // <-- IMPORTANT
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.game.Vector2D
@@ -39,9 +40,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
-import kotlin.math.roundToInt
 
-// ---------- Glassmorphic Card ----------
 @Composable
 fun GlassmorphicCard(
     modifier: Modifier = Modifier,
@@ -49,10 +48,8 @@ fun GlassmorphicCard(
     backgroundColor: Color = Color(0x12000000),
     glowColor: Color? = null,
     cornerRadius: Dp = 16.dp,
-    shadowElevation: Dp = 4.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val density = LocalDensity.current
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(cornerRadius))
@@ -73,31 +70,18 @@ fun GlassmorphicCard(
                 if (glowColor != null) {
                     drawRoundRect(
                         color = glowColor.copy(alpha = 0.05f),
-                        cornerRadius = CornerRadius(
-                            with(density) { cornerRadius.toPx() },
-                            with(density) { cornerRadius.toPx() }
-                        )
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius.toPx(), cornerRadius.toPx())
                     )
                 }
-                drawRoundRect(
-                    color = Color.Black.copy(alpha = 0.08f),
-                    topLeft = Offset(
-                        with(density) { shadowElevation.toPx() },
-                        with(density) { shadowElevation.toPx() }
-                    ),
-                    cornerRadius = CornerRadius(
-                        with(density) { cornerRadius.toPx() },
-                        with(density) { cornerRadius.toPx() }
-                    )
-                )
             }
             .padding(16.dp)
     ) {
-        Column { content() }
+        Column {
+            content()
+        }
     }
 }
 
-// ---------- Glow Button ----------
 @Composable
 fun GlowButton(
     text: String,
@@ -105,8 +89,6 @@ fun GlowButton(
     glowColor: Color = Color(0xFF00FFCC),
     textColor: Color = Color.White,
     tag: String = "glow_button",
-    loading: Boolean = false,
-    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "glow_pulse")
@@ -120,8 +102,6 @@ fun GlowButton(
         label = "pulse"
     )
 
-    val interactionSource = remember { MutableInteractionSource() }
-
     Box(
         modifier = modifier
             .testTag(tag)
@@ -129,67 +109,48 @@ fun GlowButton(
             .background(
                 brush = Brush.horizontalGradient(
                     colors = listOf(
-                        glowColor.copy(alpha = if (enabled) 0.8f else 0.3f),
-                        glowColor.copy(alpha = if (enabled) 0.4f else 0.15f)
+                        glowColor.copy(alpha = 0.8f),
+                        glowColor.copy(alpha = 0.4f)
                     )
                 )
             )
             .border(
                 width = 2.dp,
-                color = if (enabled) glowColor.copy(alpha = pulseAlpha) else glowColor.copy(alpha = 0.2f),
+                color = glowColor.copy(alpha = pulseAlpha),
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable(
-                interactionSource = interactionSource,
-                indication = ripple(color = glowColor),
-                enabled = enabled && !loading
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(color = glowColor)
             ) {
                 onClick()
             }
             .padding(vertical = 12.dp, horizontal = 24.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (loading) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .border(2.dp, textColor, CircleShape)
-            )
-        } else {
-            Text(
-                text = text,
-                color = textColor.copy(alpha = if (enabled) 1f else 0.5f),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
-        }
+        Text(
+            text = text,
+            color = textColor,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
     }
 }
 
-// ---------- Virtual Joystick ----------
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun VirtualJoystick(
     modifier: Modifier = Modifier,
-    onChange: (angle: Float?, normalizedOffset: Vector2D) -> Unit
+    onChange: (angle: Float?, offset: Vector2D) -> Unit
 ) {
-    val density = LocalDensity.current
-    val radiusPx = with(density) { 80.dp.toPx() }
+    val radiusPx = with(LocalDensity.current) { 80.dp.toPx() }
+    val handleRadiusPx = with(LocalDensity.current) { 30.dp.toPx() }
 
     var isDragging by remember { mutableStateOf(false) }
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var touchPos by remember { mutableStateOf(Offset.Zero) }
 
-    val animatedOffset by animateOffsetAsState(
-        targetValue = if (isDragging) dragOffset else Offset.Zero,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "joystick_spring"
-    )
-
-    val haptic = LocalHapticFeedback.current
+    val resolvedPosition = if (isDragging) touchPos else Offset.Zero
 
     Box(
         modifier = modifier
@@ -204,59 +165,58 @@ fun VirtualJoystick(
                 ),
                 shape = CircleShape
             )
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { offset ->
+            .pointerInteropFilter { event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
                         isDragging = true
-                        val center = Offset(size.width / 2f, size.height / 2f)
-                        val local = offset - center
-                        dragOffset = clampOffset(local, radiusPx)
-                        val maxRadius = radiusPx
-                        val normalized = Vector2D(
-                            x = dragOffset.x / maxRadius,
-                            y = dragOffset.y / maxRadius
-                        )
-                        val angle = atan2(dragOffset.y, dragOffset.x)
-                        onChange(angle, normalized)
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)  // <-- correct
-                    },
-                    onDrag = { change, _ ->
-                        change.consume()
-                        val center = Offset(size.width / 2f, size.height / 2f)
-                        val local = change.position - center
-                        dragOffset = clampOffset(local, radiusPx)
-                        val maxRadius = radiusPx
-                        val normalized = Vector2D(
-                            x = dragOffset.x / maxRadius,
-                            y = dragOffset.y / maxRadius
-                        )
-                        val angle = atan2(dragOffset.y, dragOffset.x)
-                        onChange(angle, normalized)
-                    },
-                    onDragEnd = {
+                        val localX = event.x - radiusPx
+                        val localY = event.y - radiusPx
+                        val distance = sqrt(localX * localX + localY * localY)
+                        if (distance <= radiusPx) {
+                            touchPos = Offset(localX, localY)
+                        } else {
+                            val angle = atan2(localY, localX)
+                            touchPos = Offset(cos(angle) * radiusPx, sin(angle) * radiusPx)
+                        }
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val localX = event.x - radiusPx
+                        val localY = event.y - radiusPx
+                        val distance = sqrt(localX * localX + localY * localY)
+                        if (distance <= radiusPx) {
+                            touchPos = Offset(localX, localY)
+                        } else {
+                            val angle = atan2(localY, localX)
+                            touchPos = Offset(cos(angle) * radiusPx, sin(angle) * radiusPx)
+                        }
+                        
+                        // Output angle and ratio
+                        val angleOut = atan2(touchPos.y, touchPos.x)
+                        onChange(angleOut, Vector2D(touchPos.x, touchPos.y))
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         isDragging = false
-                        onChange(null, Vector2D(0f, 0f))
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)  // <-- correct
-                    },
-                    onDragCancel = {
-                        isDragging = false
+                        touchPos = Offset.Zero
                         onChange(null, Vector2D(0f, 0f))
                     }
-                )
+                }
+                true
             },
         contentAlignment = Alignment.Center
     ) {
+        // Outer Pad markings
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawCircle(
                 color = Color(0x3300FFCC),
                 radius = radiusPx,
-                style = Stroke(width = with(density) { 1.dp.toPx() })
+                style = Stroke(width = 1.dp.toPx())
             )
+            // Tiny inside ticks
             for (i in 0 until 8) {
-                val a = i * (2 * Math.PI / 8).toFloat()
+                val a = i * (6.28f / 8f)
                 val start = Offset(
-                    (radiusPx - with(density) { 10.dp.toPx() }) * cos(a) + center.x,
-                    (radiusPx - with(density) { 10.dp.toPx() }) * sin(a) + center.y
+                    (radiusPx - 10.dp.toPx()) * cos(a) + center.x,
+                    (radiusPx - 10.dp.toPx()) * sin(a) + center.y
                 )
                 val end = Offset(
                     radiusPx * cos(a) + center.x,
@@ -266,19 +226,18 @@ fun VirtualJoystick(
                     color = Color(0x4400FFCC),
                     start = start,
                     end = end,
-                    strokeWidth = with(density) { 2.dp.toPx() }
+                    strokeWidth = 2.dp.toPx()
                 )
             }
         }
 
+        // Inner stick handle knob
         Box(
             modifier = Modifier
-                .offset {
-                    IntOffset(
-                        x = animatedOffset.x.roundToInt(),
-                        y = animatedOffset.y.roundToInt()
-                    )
-                }
+                .offset(
+                    x = with(LocalDensity.current) { resolvedPosition.x.toDp() },
+                    y = with(LocalDensity.current) { resolvedPosition.y.toDp() }
+                )
                 .size(60.dp)
                 .clip(CircleShape)
                 .background(
@@ -289,12 +248,4 @@ fun VirtualJoystick(
                 .border(2.dp, Color.White, CircleShape)
         )
     }
-}
-
-private fun clampOffset(offset: Offset, radius: Float): Offset {
-    val distance = sqrt(offset.x * offset.x + offset.y * offset.y)
-    return if (distance <= radius) offset else Offset(
-        offset.x / distance * radius,
-        offset.y / distance * radius
-    )
 }

@@ -52,7 +52,10 @@ fun PlayNowButtonCard(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scaleAnim)
-            .clickable { onClick() }
+            .clickable { 
+                com.example.audio.SoundEngine.playKillSound()
+                onClick() 
+            }
             .shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = Color(0xFFFF9E00), spotColor = Color(0xFFFF9E00)),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)

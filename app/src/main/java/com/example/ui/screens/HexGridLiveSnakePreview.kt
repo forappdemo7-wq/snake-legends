@@ -1,8 +1,8 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -20,9 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -38,7 +39,8 @@ import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
 
-// ========== Live Snake Preview (Hex Grid) ==========
+// ==================== Upgraded Live Snake Preview ====================
+
 data class PreviewParticle(
     var x: Float,
     var y: Float,
@@ -66,28 +68,30 @@ fun HexGridLiveSnakePreview(
     var frameTick by remember { mutableStateOf(0) }
 
     val skinColors = listOf(
-        listOf(Color(0xFF00FFCC), Color(0xFF008B8B), Color(0xFFEDFDF9)),
-        listOf(Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFFFF1F2)),
-        listOf(Color(0xFFFF9800), Color(0xFFFFEB3B), Color(0xFFFFFDE7))
+        listOf(Color(0xFF00F5D4), Color(0xFF00BFA5), Color(0xFFB2FFEB)),
+        listOf(Color(0xFF9F7AEA), Color(0xFFED64A6), Color(0xFFFCE7F3)),
+        listOf(Color(0xFFFFB300), Color(0xFFFFE066), Color(0xFFFFF8E1))
     )
     val curSkin = skinColors[skinCycle % skinColors.size]
 
+    // Initialize snake
     LaunchedEffect(width, height) {
-        if (snakeSegments.isEmpty() && width > 0f && height > 0f) {
+        if (snakeSegments.isEmpty() && width > 50f && height > 50f) {
             val cx = width / 2
             val cy = height / 2
+            snakeSegments.clear()
             repeat(14) { i ->
-                snakeSegments.add(Offset(cx - i * 10f, cy))
+                snakeSegments.add(Offset(cx - i * 11f, cy))
             }
             food = Offset(
-                Random.nextFloat() * (width - 40f) + 20f,
-                Random.nextFloat() * (height - 40f) + 20f
+                Random.nextFloat() * (width - 60f) + 30f,
+                Random.nextFloat() * (height - 60f) + 30f
             )
         }
     }
 
+    // Game Loop
     LaunchedEffect(Unit) {
-        val random = Random(System.currentTimeMillis())
         while (true) {
             delay(16)
             frameTick++
@@ -101,94 +105,85 @@ fun HexGridLiveSnakePreview(
             val dy = target.y - head.y
             val dist = hypot(dx, dy)
 
-            val speed = 3.6f
+            val speed = 3.8f
             var vx = 0f
             var vy = 0f
 
-            if (dist > 2f) {
+            if (dist > 3f) {
                 val baseVx = (dx / dist) * speed
                 val baseVy = (dy / dist) * speed
-                val slitherFreq = 0.2f
-                val slitherAmp = 1.0f
-                val perpX = -baseVy
-                val perpY = baseVx
-                val slitherOffset = sin(frameTick * slitherFreq) * slitherAmp
-                vx = baseVx + (perpX / speed) * slitherOffset
-                vy = baseVy + (perpY / speed) * slitherOffset
-            } else {
-                if (targetOverride != null) targetOverride = null
-            }
-
-            val newHead = Offset(
-                (head.x + vx).coerceIn(12f, width - 12f),
-                (head.y + vy).coerceIn(12f, height - 12f)
-            )
-            if (newHead.x == 12f || newHead.x == width - 12f || newHead.y == 12f || newHead.y == height - 12f) {
+                val slither = sin(frameTick * 0.22f) * 1.1f
+                vx = baseVx + (-baseVy / speed) * slither
+                vy = baseVy + (baseVx / speed) * slither
+            } else if (targetOverride != null) {
                 targetOverride = null
             }
 
-            val updatedSegments = ArrayList<Offset>(snakeSegments.size)
-            updatedSegments.add(newHead)
+            val newHead = Offset(
+                (head.x + vx).coerceIn(14f, width - 14f),
+                (head.y + vy).coerceIn(14f, height - 14f)
+            )
+
+            // Update snake body
+            val updated = mutableListOf<Offset>()
+            updated.add(newHead)
 
             var prev = newHead
-            val targetDist = 9.0f
             for (i in 1 until snakeSegments.size) {
                 val curr = snakeSegments[i]
-                val sDx = curr.x - prev.x
-                val sDy = curr.y - prev.y
-                val sDist = hypot(sDx, sDy)
-                if (sDist > targetDist) {
-                    val ratio = targetDist / sDist
-                    updatedSegments.add(Offset(prev.x + sDx * ratio, prev.y + sDy * ratio))
+                val d = hypot(curr.x - prev.x, curr.y - prev.y)
+                if (d > 11f) {
+                    val ratio = 11f / d
+                    updated.add(Offset(prev.x + (curr.x - prev.x) * ratio, prev.y + (curr.y - prev.y) * ratio))
                 } else {
-                    updatedSegments.add(curr)
+                    updated.add(curr)
                 }
-                prev = updatedSegments.last()
+                prev = updated.last()
             }
 
             snakeSegments.clear()
-            snakeSegments.addAll(updatedSegments)
+            snakeSegments.addAll(updated)
 
-            val fDist = hypot(food.x - newHead.x, food.y - newHead.y)
-            if (fDist < 16f) {
-                repeat(16) {
-                    val ang = random.nextFloat() * 2f * Math.PI.toFloat()
-                    val pSpeed = random.nextFloat() * 4.0f + 1.2f
+            // Eat food
+            if (hypot(food.x - newHead.x, food.y - newHead.y) < 17f) {
+                // Particles explosion
+                repeat(18) {
+                    val angle = Random.nextFloat() * 2f * Math.PI.toFloat()
+                    val vel = Random.nextFloat() * 4.2f + 1.6f
                     particles.add(
                         PreviewParticle(
-                            x = food.x,
-                            y = food.y,
-                            vx = cos(ang) * pSpeed,
-                            vy = sin(ang) * pSpeed,
+                            x = food.x, y = food.y,
+                            vx = cos(angle) * vel,
+                            vy = sin(angle) * vel,
                             color = curSkin.random(),
                             life = 1f,
-                            size = random.nextFloat() * 4.5f + 1.5f
+                            size = Random.nextFloat() * 5f + 2f
                         )
                     )
                 }
 
-                val tail = snakeSegments.lastOrNull() ?: newHead
-                snakeSegments.add(tail)
-
+                snakeSegments.add(snakeSegments.lastOrNull() ?: newHead)
                 onPointsEatenChange(pointsEaten + 1)
+
                 if ((pointsEaten + 1) % 3 == 0) {
                     onSkinCycleChange(skinCycle + 1)
                 }
 
                 food = Offset(
-                    random.nextFloat() * (width - 60f) + 30f,
-                    random.nextFloat() * (height - 60f) + 30f
+                    Random.nextFloat() * (width - 70f) + 35f,
+                    Random.nextFloat() * (height - 70f) + 35f
                 )
             }
 
+            // Update particles
             val iterator = particles.listIterator()
             while (iterator.hasNext()) {
                 val p = iterator.next()
                 p.x += p.vx
                 p.y += p.vy
-                p.vx *= 0.94f
-                p.vy *= 0.94f
-                p.life -= 0.02f
+                p.vx *= 0.935f
+                p.vy *= 0.935f
+                p.life -= 0.023f
                 if (p.life <= 0f) iterator.remove()
             }
         }
@@ -197,202 +192,160 @@ fun HexGridLiveSnakePreview(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
-        border = BorderStroke(1.2.dp, Color(0xFF1E293B))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0F1C)),
+        border = BorderStroke(1.5.dp, Color(0xFF1E2A44))
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF00FFCC))
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF22FFCC)))
+                    Spacer(Modifier.width(7.dp))
                     Text(
-                        text = "LIVE SNAKE PREVIEW",
+                        text = "LIVE VIPER PREVIEW",
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        letterSpacing = 0.5.sp
+                        letterSpacing = 1.sp
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(curSkin[0].copy(alpha = 0.15f))
-                        .border(1.dp, curSkin[0].copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(curSkin[0].copy(alpha = 0.18f))
+                        .border(1.dp, curSkin[0].copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = when (skinCycle % 3) {
-                            0 -> "VIPER: NEON VIPER"
-                            1 -> "VIPER: CYBER GLOW"
-                            else -> "VIPER: SOLAR FLARE"
+                            0 -> "NEON VIPER"
+                            1 -> "CYBER GLOW"
+                            else -> "SOLAR FLARE"
                         },
                         color = curSkin[0],
-                        fontSize = 9.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Black,
                         fontFamily = FontFamily.Monospace
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
 
+            // Canvas Container
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF070B13))
-                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                    .height(210.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF05080F), Color(0xFF0C1325))
+                        )
+                    )
+                    .border(1.5.dp, Color(0xFF1F2B4A), RoundedCornerShape(16.dp))
             ) {
-                val infiniteTransition = rememberInfiniteTransition(label = "hex")
+                val infiniteTransition = rememberInfiniteTransition()
                 val gridAlpha by infiniteTransition.animateFloat(
-                    initialValue = 0.08f,
-                    targetValue = 0.18f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1800, easing = LinearEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "alphaGrid"
+                    0.09f, 0.22f,
+                    infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse)
                 )
 
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
-                        .onSizeChanged { size ->
-                            width = size.width.toFloat()
-                            height = size.height.toFloat()
+                        .onSizeChanged {
+                            width = it.width.toFloat()
+                            height = it.height.toFloat()
                         }
                         .pointerInput(Unit) {
                             detectTapGestures { offset ->
                                 targetOverride = offset
-                                repeat(10) {
-                                    val r = Random(System.nanoTime())
-                                    val ang = r.nextFloat() * 2f * Math.PI.toFloat()
-                                    val spd = r.nextFloat() * 3.5f + 1.2f
+                                repeat(12) {
+                                    val r = Random
+                                    val ang = r.nextFloat() * 2 * Math.PI.toFloat()
+                                    val spd = r.nextFloat() * 4f + 1.8f
                                     particles.add(
                                         PreviewParticle(
-                                            x = offset.x,
-                                            y = offset.y,
-                                            vx = cos(ang) * spd,
-                                            vy = sin(ang) * spd,
-                                            color = curSkin.random(),
-                                            life = 1f,
-                                            size = r.nextFloat() * 4f + 2f
+                                            offset.x, offset.y,
+                                            cos(ang) * spd, sin(ang) * spd,
+                                            curSkin.random(), 1f,
+                                            r.nextFloat() * 4.5f + 2.2f
                                         )
                                     )
                                 }
                             }
                         }
                 ) {
-                    // Hexagonal grid
-                    val hexRadius = 18f
-                    val dx = hexRadius * 1.5f
-                    val dy = hexRadius * kotlin.math.sqrt(3f)
+                    // Hex Grid
+                    val hexRadius = 19f
+                    val dx = hexRadius * 1.6f
+                    val dy = hexRadius * 1.732f
 
-                    for (i in 0..(size.width / dx).toInt() + 1) {
-                        for (j in 0..(size.height / dy).toInt() + 1) {
-                            val cx = if (j % 2 == 0) i * dx * 2f else i * dx * 2f + dx
+                    for (i in -1..(size.width / dx).toInt() + 2) {
+                        for (j in -1..(size.height / dy).toInt() + 2) {
+                            val cx = if (j % 2 == 0) i * dx * 2 else i * dx * 2 + dx
                             val cy = j * dy
 
-                            val hexPath = Path().apply {
-                                for (corner in 0..5) {
-                                    val rad = Math.toRadians(corner * 60.0)
+                            val path = Path().apply {
+                                for (k in 0..5) {
+                                    val rad = Math.toRadians(k * 60.0)
                                     val px = cx + hexRadius * cos(rad).toFloat()
                                     val py = cy + hexRadius * sin(rad).toFloat()
-                                    if (corner == 0) moveTo(px, py) else lineTo(px, py)
+                                    if (k == 0) moveTo(px, py) else lineTo(px, py)
                                 }
                                 close()
                             }
+
                             drawPath(
-                                path = hexPath,
-                                color = Color(0xFF1E293B).copy(alpha = gridAlpha),
-                                style = Stroke(width = 0.8f)
+                                path = path,
+                                color = Color(0xFF1F2B4A).copy(alpha = gridAlpha),
+                                style = Stroke(width = 1f)
                             )
                         }
                     }
 
-                    targetOverride?.let { tgt ->
-                        drawCircle(
-                            color = Color(0xFF00FFCC).copy(alpha = 0.35f),
-                            radius = 11f + sin(frameTick * 0.15f).absoluteValue * 3f,
-                            center = tgt,
-                            style = Stroke(width = 1.2f)
-                        )
-                        drawLine(
-                            color = Color(0xFF00FFCC).copy(alpha = 0.15f),
-                            start = Offset(tgt.x, 0f),
-                            end = Offset(tgt.x, size.height),
-                            strokeWidth = 1f,
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f)
-                        )
-                        drawLine(
-                            color = Color(0xFF00FFCC).copy(alpha = 0.15f),
-                            start = Offset(0f, tgt.y),
-                            end = Offset(size.width, tgt.y),
-                            strokeWidth = 1f,
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f)
-                        )
-                    }
-
+                    // Particles
                     particles.forEach { p ->
                         drawCircle(
-                            color = p.color.copy(alpha = p.life),
+                            color = p.color.copy(alpha = p.life * 0.9f),
                             radius = p.size * p.life,
                             center = Offset(p.x, p.y)
                         )
                     }
 
                     // Food
-                    val pulseScale = 1.0f + sin(frameTick * 0.18f).absoluteValue * 0.25f
-                    val outerGlow = 7.5f * pulseScale
+                    val foodPulse = 1f + sin(frameTick * 0.22f).absoluteValue * 0.3f
                     drawCircle(
-                        color = curSkin[0].copy(alpha = 0.15f),
-                        radius = outerGlow * 2.2f,
+                        color = curSkin[0].copy(alpha = 0.2f),
+                        radius = 13f * foodPulse,
                         center = food
                     )
                     drawCircle(
-                        color = curSkin[0].copy(alpha = 0.4f),
-                        radius = outerGlow * 1.5f,
-                        center = food,
-                        style = Stroke(width = 1.5f)
-                    )
-                    drawCircle(
                         color = curSkin[1],
-                        radius = 4.2f,
+                        radius = 5.5f,
                         center = food
                     )
                     drawCircle(
                         color = Color.White,
-                        radius = 1.8f,
+                        radius = 2.2f,
                         center = food
                     )
 
                     // Snake
-                    for (i in snakeSegments.indices.reversed()) {
-                        val pos = snakeSegments[i]
-                        val rPercent = 1.0f - (i.toFloat() / snakeSegments.size.toFloat()) * 0.5f
-                        val radius = (7.0f * rPercent).coerceAtLeast(3.2f)
+                    snakeSegments.forEachIndexed { i, pos ->
+                        val alpha = (1f - i.toFloat() / snakeSegments.size * 0.45f).coerceAtLeast(0.6f)
+                        val radius = (8.5f * (1f - i.toFloat() / snakeSegments.size * 0.55f)).coerceAtLeast(3.8f)
 
                         drawCircle(
-                            color = curSkin[i % curSkin.size].copy(alpha = 0.12f),
-                            radius = radius * 2.5f,
+                            color = curSkin[i % curSkin.size].copy(alpha = alpha * 0.15f),
+                            radius = radius * 2.4f,
                             center = pos
                         )
                         drawCircle(
@@ -402,94 +355,53 @@ fun HexGridLiveSnakePreview(
                         )
 
                         if (i == 0) {
-                            drawCircle(
-                                color = Color.White,
-                                radius = radius * 0.45f,
-                                center = Offset(pos.x - radius * 0.2f, pos.y - radius * 0.2f)
-                            )
+                            // Head highlight
+                            drawCircle(Color.White.copy(alpha = 0.7f), radius * 0.45f,
+                                Offset(pos.x - radius * 0.25f, pos.y - radius * 0.25f))
                             // Crown
-                            val crownPath = Path().apply {
-                                moveTo(pos.x - 7f, pos.y - 6f)
-                                lineTo(pos.x - 9f, pos.y - 12f)
-                                lineTo(pos.x - 3f, pos.y - 9f)
-                                lineTo(pos.x + 0f, pos.y - 15f)
-                                lineTo(pos.x + 3f, pos.y - 9f)
-                                lineTo(pos.x + 9f, pos.y - 12f)
-                                lineTo(pos.x + 7f, pos.y - 6f)
+                            val crown = Path().apply {
+                                moveTo(pos.x - 8f, pos.y - 7f)
+                                lineTo(pos.x - 10f, pos.y - 14f)
+                                lineTo(pos.x - 4f, pos.y - 10f)
+                                lineTo(pos.x + 1f, pos.y - 17f)
+                                lineTo(pos.x + 5f, pos.y - 10f)
+                                lineTo(pos.x + 10f, pos.y - 14f)
+                                lineTo(pos.x + 8f, pos.y - 7f)
                                 close()
                             }
-                            drawPath(crownPath, color = Color(0xFFFFD700))
-                            drawPath(crownPath, color = Color(0xFFFFC107), style = Stroke(width = 0.8f))
+                            drawPath(crown, Color(0xFFFFE600))
                         }
                     }
                 }
 
-                // Overlay text
+                // HUD Overlay
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(10.dp),
+                    Modifier.fillMaxSize().padding(12.dp),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(
-                            text = "PREVIEW_SYSTEM: v3.2",
-                            color = Color(0xFF64748B),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
+                            "SYS_v4.1 • LIVE",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace
                         )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color.Black.copy(alpha = 0.6f))
-                                .border(1.dp, Color(0xFFFFD700).copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color(0xFFFFD700),
-                                modifier = Modifier.size(9.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "VIPER",
-                                color = Color.White,
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Black,
-                                fontFamily = FontFamily.Monospace
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700), modifier = Modifier.size(11.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("VIPER", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                         Column {
-                            Text(
-                                text = "SNAKE_LENGTH: ${snakeSegments.size}",
-                                color = Color(0xFF64748B),
-                                fontSize = 8.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            Text(
-                                text = "SYS_FPS: 60FPS · STABLE",
-                                color = Color(0xFF22C55E),
-                                fontSize = 8.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
+                            Text("LENGTH: ${snakeSegments.size}", color = Color(0xFF94A3B8), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                            Text("FPS: 60 • STABLE", color = Color(0xFF4ADE80), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                         }
                         Text(
-                            text = "TAP TO STEER VIPER",
-                            color = Color(0xFF64748B).copy(alpha = 0.8f),
-                            fontSize = 7.5.sp,
+                            "TAP TO STEER",
+                            color = Color(0xFFCBD5E1).copy(alpha = 0.75f),
+                            fontSize = 8.5.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                             textAlign = TextAlign.End

@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.compose.ui.graphics.Color
+import com.example.audio.SoundEngine
 import java.util.UUID
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -540,6 +541,7 @@ class GameEngine {
                             floatingTexts.add(FloatingText(snake.position, "GROWTH POTION +3 SEGMENTS!", Color(0xFF66BB6A)))
                             triggerHaptic("heavy")
                             cameraShake = 6f
+                            SoundEngine.playPowerUpSound()
                         }
                     } else {
                         snake.activePowerUpType = powerUp.type
@@ -556,6 +558,7 @@ class GameEngine {
                             floatingTexts.add(FloatingText(snake.position, activeText, powerUp.color))
                             triggerHaptic("medium")
                             cameraShake = 4f
+                            SoundEngine.playPowerUpSound()
                         }
                     }
                     break
@@ -843,27 +846,63 @@ class GameEngine {
                 }
             }
 
-            // 9.3 Turn toward AI target smoothly
-            val target = snake.botTarget
-            if (target != null) {
-                val dx = target.x - snake.position.x
-                val dy = target.y - snake.position.y
-                val targetAngle = atan2(dy.toDouble(), dx.toDouble()).toFloat()
-                
-                val diff = targetAngle - snake.angle
-                val s1 = sin(diff.toDouble()).toFloat()
-                
-                var turnSpeed = 0.08f
-                if (activeWeather == "ICE_BLIZZARD") {
-                    turnSpeed = 0.03f // slip
+            // 9.3 Turn toward AI target with Raycast Obstacle Evasion
+            var desiredAngle = snake.angle
+            
+            // Check wall proximity raycasts
+            val lookAheadDist = 140f
+            val lookAngleLeft = snake.angle - 0.6f
+            val lookAngleRight = snake.angle + 0.6f
+            val frontPos = Vector2D(snake.position.x + cos(snake.angle) * lookAheadDist, snake.position.y + sin(snake.angle) * lookAheadDist)
+            
+            var avoidSteer = 0f
+            var hazardInFront = false
+            
+            if (frontPos.x < 100f || frontPos.x > arenaWidth - 100f || frontPos.y < 100f || frontPos.y > arenaHeight - 100f) {
+                hazardInFront = true
+                val centerDir = Vector2D(arenaWidth / 2f - snake.position.x, arenaHeight / 2f - snake.position.y)
+                desiredAngle = atan2(centerDir.y.toDouble(), centerDir.x.toDouble()).toFloat()
+            } else {
+                // Check nearby snake bodies for collision threat
+                for (other in snakes) {
+                    if (!other.isAlive || other.id == snake.id) continue
+                    val checkSegs = if (other.body.size > 2) (2 until other.body.size step 2).map { other.body[it] } else other.body
+                    for (seg in checkSegs) {
+                        if (frontPos.distance(seg) < 45f) {
+                            hazardInFront = true
+                            // Steering impulse away from segment
+                            val leftPos = Vector2D(snake.position.x + cos(lookAngleLeft) * lookAheadDist, snake.position.y + sin(lookAngleLeft) * lookAheadDist)
+                            val rightPos = Vector2D(snake.position.x + cos(lookAngleRight) * lookAheadDist, snake.position.y + sin(lookAngleRight) * lookAheadDist)
+                            avoidSteer = if (leftPos.distance(seg) > rightPos.distance(seg)) -0.3f else 0.3f
+                            break
+                        }
+                    }
+                    if (hazardInFront) break
                 }
-                if (snake.position.x < 150f || snake.position.x > arenaWidth - 150f ||
-                    snake.position.y < 150f || snake.position.y > arenaHeight - 150f
-                ) {
-                    turnSpeed = 0.25f // steep steer
-                }
-                snake.angle += if (s1 > 0) turnSpeed else -turnSpeed
             }
+
+            if (hazardInFront) {
+                desiredAngle = snake.angle + avoidSteer
+                snake.isBoosting = true
+            } else {
+                val target = snake.botTarget
+                if (target != null) {
+                    val dx = target.x - snake.position.x
+                    val dy = target.y - snake.position.y
+                    desiredAngle = atan2(dy.toDouble(), dx.toDouble()).toFloat()
+                }
+            }
+
+            // Smooth angular rotation towards desired angle
+            var diff = desiredAngle - snake.angle
+            while (diff < -Math.PI) diff += (2 * Math.PI).toFloat()
+            while (diff > Math.PI) diff -= (2 * Math.PI).toFloat()
+            
+            var turnSpeed = if (hazardInFront) 0.22f else 0.09f
+            if (activeWeather == "ICE_BLIZZARD") {
+                turnSpeed = 0.04f
+            }
+            snake.angle += (diff * turnSpeed)
 
             // Randomly enable boosting
             if (Random.nextInt(50) == 0 && snake.length > 5 && !snake.isFrozen && !snake.isEmped) {
@@ -964,6 +1003,7 @@ class GameEngine {
                         if (snake.isPlayer) {
                             triggerHaptic("heavy")
                             cameraShake = 25f
+                            SoundEngine.playCollisionSound()
                         } else {
                             if (other.isPlayer) {
                                 totalKills++
@@ -972,6 +1012,7 @@ class GameEngine {
                                 floatingTexts.add(FloatingText(snake.position, "KILL +400 XP", Color(0xFFFF5252)))
                                 triggerHaptic("heavy")
                                 cameraShake = 20f
+                                SoundEngine.playKillSound()
                             }
                         }
                         publishKill(other, snake, "collision")
@@ -991,6 +1032,7 @@ class GameEngine {
                 player.score += orb.points * multiplier
                 player.length = 4 + (player.score / 25)
                 eatenOrbIds.add(orb.id)
+                SoundEngine.playEatSound(orb.isSuperOrb, orb.isCelestialOrb)
                 
                 val coinsToAdd = (if (orb.isCelestialOrb) 50 else if (orb.isSuperOrb) 5 else 1) * multiplier
                 val xpToAdd = (if (orb.isCelestialOrb) 150 else if (orb.isSuperOrb) 20 else 5) * multiplier
@@ -1242,13 +1284,14 @@ class GameEngine {
     }
 
     private fun updateBodySegments(snake: Snake) {
-        // Snake moves. Head positions inserted at index 0.
-        // We crop body size up to current tracked length * 4.
-        // Node spline interpolation spacing. Segment is spawned every 4-5 ticks/frames.
+        // Snake moves. Store exact head position
         snake.body.add(0, Vector2D(snake.position.x, snake.position.y))
         
-        val gap = 6 // step spacing between body rendering sections
-        val targetSize = snake.length * gap
+        // Continuous path distance-based segment spacing (8px gap per segment)
+        val desiredSpacing = 8.0f
+        val gapInIndices = maxOf(2, (desiredSpacing / maxOf(1.0f, snake.speed)).toInt())
+        val targetSize = snake.length * gapInIndices
+        
         while (snake.body.size > targetSize) {
             snake.body.removeAt(snake.body.lastIndex)
         }

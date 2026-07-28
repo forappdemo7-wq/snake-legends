@@ -6,7 +6,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +28,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.Clan
 import com.example.game.GameViewModel
 import com.example.ui.components.GlassmorphicCard
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,26 +37,12 @@ fun ClansScreen(
 ) {
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val clansList by viewModel.clans.collectAsStateWithLifecycle()
-    val coroutineScope = rememberCoroutineScope()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var clanNameInput by remember { mutableStateOf("") }
     var clanTagInput by remember { mutableStateOf("") }
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    var pendingMessage by remember { mutableStateOf<String?>(null) }
-    var isProcessing by remember { mutableStateOf(false) }
-
-    // Show snackbar when a message is set
-    LaunchedEffect(pendingMessage) {
-        pendingMessage?.let { msg ->
-            snackbarHostState.showSnackbar(
-                message = msg,
-                duration = SnackbarDuration.Short
-            )
-            pendingMessage = null
-        }
-    }
+    var alertMessage by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -78,9 +68,9 @@ fun ClansScreen(
                 )
             )
         },
-        containerColor = Color(0xFF030712),
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        containerColor = Color(0xFF030712)
     ) { innerPadding ->
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -133,21 +123,11 @@ fun ClansScreen(
                                 }
 
                                 Button(
-                                    onClick = {
-                                        if (!isProcessing) {
-                                            isProcessing = true
-                                            coroutineScope.launch {
-                                                viewModel.leaveCurrentClan()
-                                                isProcessing = false
-                                                pendingMessage = "You left the clan."
-                                            }
-                                        }
-                                    },
+                                    onClick = { viewModel.leaveCurrentClan() },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF3366)),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                    modifier = Modifier.testTag("leave_clan"),
-                                    enabled = !isProcessing
+                                    modifier = Modifier.testTag("leave_clan")
                                 ) {
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -160,7 +140,7 @@ fun ClansScreen(
                             }
                         }
                     } else {
-                        // User NOT in a Clan
+                        // User NOT in a Clan -> Prompt options
                         GlassmorphicCard(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -189,8 +169,7 @@ fun ClansScreen(
                                     onClick = { showCreateDialog = true },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
                                     shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.testTag("show_create_clan"),
-                                    enabled = !isProcessing
+                                    modifier = Modifier.testTag("show_create_clan")
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -216,7 +195,7 @@ fun ClansScreen(
                         .padding(bottom = 10.dp)
                 )
 
-                // List of Clans – FIX: key now uses index, not id.
+                // List of Clans
                 if (clansList.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -231,30 +210,18 @@ fun ClansScreen(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(
-                            count = clansList.size,
-                            key = { index -> index }  // FIXED: Use index as stable key
-                        ) { index ->
+                        items(clansList.size) { index ->
                             ClanRow(
                                 clan = clansList[index],
                                 isUserInAnyClan = userProfile?.clanName != null,
                                 isCurrentlyMember = userProfile?.clanName == clansList[index].name,
-                                isProcessing = isProcessing,
                                 onJoin = {
-                                    if (!isProcessing) {
-                                        isProcessing = true
-                                        coroutineScope.launch {
-                                            viewModel.joinOrCreateClan(
-                                                isCreate = false,
-                                                name = clansList[index].name,
-                                                tag = clansList[index].tag,
-                                                onCompleted = { msg ->
-                                                    pendingMessage = msg
-                                                    isProcessing = false
-                                                }
-                                            )
-                                        }
-                                    }
+                                    viewModel.joinOrCreateClan(
+                                        isCreate = false,
+                                        name = clansList[index].name,
+                                        tag = clansList[index].tag,
+                                        onCompleted = { msg -> alertMessage = msg }
+                                    )
                                 }
                             )
                         }
@@ -262,7 +229,7 @@ fun ClansScreen(
                 }
             }
 
-            // Create Clan Dialog
+            // Create Clan overlay dialog
             if (showCreateDialog) {
                 AlertDialog(
                     onDismissRequest = { showCreateDialog = false },
@@ -270,25 +237,19 @@ fun ClansScreen(
                         TextButton(
                             onClick = {
                                 if (clanNameInput.isNotBlank() && clanTagInput.length in 2..4) {
-                                    if (!isProcessing) {
-                                        isProcessing = true
-                                        showCreateDialog = false
-                                        coroutineScope.launch {
-                                            viewModel.joinOrCreateClan(
-                                                isCreate = true,
-                                                name = clanNameInput,
-                                                tag = clanTagInput.uppercase(),
-                                                onCompleted = { msg ->
-                                                    pendingMessage = msg
-                                                    clanNameInput = ""
-                                                    clanTagInput = ""
-                                                    isProcessing = false
-                                                }
-                                            )
+                                    showCreateDialog = false
+                                    viewModel.joinOrCreateClan(
+                                        isCreate = true,
+                                        name = clanNameInput,
+                                        tag = clanTagInput.uppercase(),
+                                        onCompleted = { msg ->
+                                            alertMessage = msg
+                                            clanNameInput = ""
+                                            clanTagInput = ""
                                         }
-                                    }
+                                    )
                                 } else {
-                                    pendingMessage = "Please insert unique name & 2-4 tag size"
+                                    alertMessage = "Please insert unique name & 2-4 tag size"
                                 }
                             }
                         ) {
@@ -306,7 +267,7 @@ fun ClansScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text("Declare your crew name and standard 4-letter tag.", color = Color.LightGray, fontSize = 12.sp)
-
+                            
                             OutlinedTextField(
                                 value = clanNameInput,
                                 onValueChange = { clanNameInput = it.take(20) },
@@ -318,13 +279,12 @@ fun ClansScreen(
                                     unfocusedBorderColor = Color(0x33FFFFFF)
                                 ),
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !isProcessing
+                                modifier = Modifier.fillMaxWidth()
                             )
 
                             OutlinedTextField(
                                 value = clanTagInput,
-                                onValueChange = { clanTagInput = it.take(4).uppercase() },
+                                onValueChange = { clanTagInput = it.take(4) },
                                 label = { Text("CLAN TAG (2-4 LETTERS)") },
                                 placeholder = { Text("E.g. APEX") },
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -334,21 +294,28 @@ fun ClansScreen(
                                     unfocusedBorderColor = Color(0x33FFFFFF)
                                 ),
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !isProcessing
+                                modifier = Modifier.fillMaxWidth()
                             )
-
-                            if (isProcessing) {
-                                LinearProgressIndicator(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = Color(0xFF00FFCC)
-                                )
-                            }
                         }
                     },
                     containerColor = Color(0xFF0C101F),
                     titleContentColor = Color.White,
                     textContentColor = Color.LightGray
+                )
+            }
+
+            // Alert snack messages
+            if (alertMessage != null) {
+                AlertDialog(
+                    onDismissRequest = { alertMessage = null },
+                    confirmButton = {
+                        TextButton(onClick = { alertMessage = null }) {
+                            Text("OK", color = Color(0xFFFFFF33), fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = { Text(alertMessage ?: "") },
+                    containerColor = Color(0xFF1E293B),
+                    textContentColor = Color.White
                 )
             }
         }
@@ -360,7 +327,6 @@ fun ClanRow(
     clan: Clan,
     isUserInAnyClan: Boolean,
     isCurrentlyMember: Boolean,
-    isProcessing: Boolean,
     onJoin: () -> Unit
 ) {
     Box(
@@ -412,45 +378,30 @@ fun ClanRow(
             }
 
             // Join Button
-            when {
-                isCurrentlyMember -> {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF00FFCC).copy(alpha = 0.1f))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+            if (!isUserInAnyClan) {
+                Button(
+                    onClick = onJoin,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    modifier = Modifier.testTag("join_${clan.name}")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("MEMBER", color = Color(0xFF00FFCC), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        Icon(Icons.Default.GroupAdd, contentDescription = "Add", tint = Color.Black, modifier = Modifier.size(14.dp))
+                        Text("JOIN", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Black)
                     }
                 }
-                !isUserInAnyClan -> {
-                    Button(
-                        onClick = onJoin,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                        modifier = Modifier.testTag("join_${clan.name}"),
-                        enabled = !isProcessing
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Default.GroupAdd, contentDescription = "Add", tint = Color.Black, modifier = Modifier.size(14.dp))
-                            Text("JOIN", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
-                else -> {
-                    // User is in a different clan – no action
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0x33FFFFFF))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text("OTHER", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                    }
+            } else if (isCurrentlyMember) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF00FFCC).copy(alpha = 0.1f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text("MEMBER", color = Color(0xFF00FFCC), fontSize = 10.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
