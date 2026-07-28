@@ -12,10 +12,25 @@ import io.socket.client.Socket
 import io.socket.emitter.Emitter
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.PrintWriter
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.SocketTimeoutException
+import java.net.Socket as JavaSocket
 import java.util.UUID
 import kotlin.random.Random
 
 // ---------- Enums & Data ----------
+
+data class DiscoveredLanHost(
+    val roomCode: String,
+    val hostName: String,
+    val ip: String,
+    val port: Int,
+    val lastSeen: Long = System.currentTimeMillis()
+)
 
 enum class ServerRegion(val regionName: String, val basePingMs: Int) {
     NORTH_AMERICA("North America (Virginia)", 24),
@@ -77,6 +92,9 @@ class MultiplayerManager {
     private val _incomingGameStartTrigger = MutableStateFlow(false)
     val incomingGameStartTrigger: StateFlow<Boolean> = _incomingGameStartTrigger.asStateFlow()
 
+    private val _discoveredLanHosts = MutableStateFlow<List<DiscoveredLanHost>>(emptyList())
+    val discoveredLanHosts: StateFlow<List<DiscoveredLanHost>> = _discoveredLanHosts.asStateFlow()
+
     // Chat messages and participants – always update on main thread
     private val _chatMessages = MutableStateFlow<List<LobbyChatMessage>>(emptyList())
     val chatMessages: StateFlow<List<LobbyChatMessage>> = _chatMessages.asStateFlow()
@@ -93,6 +111,10 @@ class MultiplayerManager {
     // Internal state
     private var socket: Socket? = null
     private var networkJob: Job? = null
+    private var lanSocketWriter: PrintWriter? = null
+    private var lanSocketReader: BufferedReader? = null
+    private var lanTcpSocket: JavaSocket? = null
+    private var lanScanJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     var currentRoomCode: String = ""
     var currentUsername: String = "Player"
@@ -100,16 +122,23 @@ class MultiplayerManager {
     // Fallback emulation flag – true when using local mock peers
     private var isEmulated = false
 
+    var customRenderUrl by mutableStateOf("https://snake-legends-backend.onrender.com")
+
     // Multi‑region server pool
     private val socketServerUrls = listOf(
+        "https://snake-legends-backend.onrender.com",
         "https://cyber-snake-multiplayer.glitch.me",
-        "https://socketio-chat-h9zo.onrender.com",
-        "https://socket-io-multitemplate.herokuapp.com"
+        "https://socketio-chat-h9zo.onrender.com"
     )
 
     // ---------- Public API ----------
 
-    fun connectToRoomWebSocket(roomCode: String, username: String, onGameStartReceived: () -> Unit = {}) {
+    fun connectToRoomWebSocket(
+        roomCode: String,
+        username: String,
+        customUrl: String? = null,
+        onGameStartReceived: () -> Unit = {}
+    ) {
         disconnect() // clean previous state
         currentRoomCode = roomCode
         currentUsername = username
@@ -121,7 +150,16 @@ class MultiplayerManager {
         updateActiveParticipants(listOf(username))
         clearPeerSnakes()
 
-        val chosenUrl = socketServerUrls.random() // Random server selection
+        val chosenUrl = if (!customUrl.isNullOrBlank()) {
+            val formatted = customUrl.trim()
+            if (!formatted.startsWith("http://") && !formatted.startsWith("https://")) {
+                "https://$formatted"
+            } else formatted
+        } else if (customRenderUrl.isNotBlank()) {
+            customRenderUrl.trim()
+        } else {
+            socketServerUrls.random()
+        }
 
         try {
             val opts = IO.Options().apply {
@@ -298,6 +336,213 @@ class MultiplayerManager {
         }
     }
 
+    fun startScanningLanHosts() {
+        lanScanJob?.cancel()
+        lanScanJob = scope.launch(Dispatchers.IO) {
+            var socket: DatagramSocket? = null
+            try {
+                socket = DatagramSocket(8889)
+                socket.soTimeout = 2000
+                val buffer = ByteArray(1024)
+
+                while (isActive) {
+                    try {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        socket.receive(packet)
+                        val text = String(packet.data, 0, packet.length)
+                        val json = JSONObject(text)
+                        if (json.optString("type") == "LAN_BEACON") {
+                            val host = DiscoveredLanHost(
+                                roomCode = json.optString("roomCode"),
+                                hostName = json.optString("hostName"),
+                                ip = json.optString("ip"),
+                                port = json.optInt("port", 8888)
+                            )
+                            val current = _discoveredLanHosts.value.toMutableList()
+                            val idx = current.indexOfFirst { it.ip == host.ip }
+                            if (idx >= 0) {
+                                current[idx] = host
+                            } else {
+                                current.add(host)
+                            }
+                            _discoveredLanHosts.value = current
+                        }
+                    } catch (e: SocketTimeoutException) {
+                        // Timeout check
+                    } catch (e: Exception) {
+                        // Transient net errors
+                    }
+                }
+            } catch (e: Exception) {
+                // Address already bound or net disabled
+            } finally {
+                socket?.close()
+            }
+        }
+    }
+
+    fun connectToLanHost(
+        hostIp: String,
+        port: Int = 8888,
+        username: String,
+        onConnected: () -> Unit = {},
+        onGameEngineSync: ((com.example.server.ServerStateSnapshot) -> Unit)? = null
+    ) {
+        disconnect()
+        currentUsername = username
+        currentRoomCode = "LAN_$hostIp"
+        _connectionStatus.value = ConnectionStatus.CONNECTING
+
+        updateChatMessages(emptyList())
+        updateActiveParticipants(listOf(username))
+        clearPeerSnakes()
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val socket = JavaSocket(hostIp, port)
+                socket.tcpNoDelay = true
+                lanTcpSocket = socket
+                val writer = PrintWriter(socket.getOutputStream(), true)
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                lanSocketWriter = writer
+                lanSocketReader = reader
+
+                val joinObj = JSONObject().apply {
+                    put("type", "JOIN")
+                    put("username", username)
+                    put("playerId", "p_lan_${UUID.randomUUID()}")
+                }.toString()
+                writer.println(joinObj)
+
+                _connectionStatus.value = ConnectionStatus.CONNECTED
+                withContext(Dispatchers.Main) { onConnected() }
+
+                launch {
+                    while (isActive && lanTcpSocket?.isClosed == false) {
+                        val start = System.currentTimeMillis()
+                        val pingObj = JSONObject().apply {
+                            put("type", "PING")
+                            put("clientTime", start)
+                        }.toString()
+                        writer.println(pingObj)
+                        delay(1000)
+                    }
+                }
+
+                var line: String? = null
+                while (isActive) {
+                    line = reader.readLine() ?: break
+                    if (line.isEmpty()) continue
+                    try {
+                        val json = JSONObject(line)
+                        when (json.optString("type")) {
+                            "PONG" -> {
+                                val clientTime = json.optLong("clientTime")
+                                val rtt = (System.currentTimeMillis() - clientTime).toInt().coerceAtLeast(1)
+                                _pingMs.value = rtt
+                            }
+                            "SNAPSHOT" -> {
+                                val tick = json.optLong("tick")
+                                val timestamp = json.optLong("timestamp")
+                                val safeZoneRadius = json.optDouble("safeZoneRadius", 3000.0).toFloat()
+                                val activeEvent = json.optString("activeEvent", "CALM")
+
+                                val snakesArr = json.optJSONArray("snakes")
+                                val snakeStates = mutableListOf<com.example.server.SnakeState>()
+                                if (snakesArr != null) {
+                                    for (i in 0 until snakesArr.length()) {
+                                        val sObj = snakesArr.optJSONObject(i) ?: continue
+                                        val id = sObj.optString("id")
+                                        val name = sObj.optString("name")
+                                        val px = sObj.optDouble("x").toFloat()
+                                        val py = sObj.optDouble("y").toFloat()
+                                        val angle = sObj.optDouble("angle").toFloat()
+                                        val speed = sObj.optDouble("speed").toFloat()
+                                        val length = sObj.optInt("length")
+                                        val score = sObj.optInt("score")
+                                        val isBoosting = sObj.optBoolean("isBoosting")
+                                        val isAlive = sObj.optBoolean("isAlive", true)
+                                        val primaryHex = sObj.optString("primaryHex", "#00FFCC")
+                                        val secondaryHex = sObj.optString("secondaryHex", "#0099FF")
+
+                                        val bodyArr = sObj.optJSONArray("body")
+                                        val bodyList = mutableListOf<Vector2D>()
+                                        if (bodyArr != null) {
+                                            for (j in 0 until bodyArr.length()) {
+                                                val bObj = bodyArr.optJSONObject(j) ?: continue
+                                                bodyList.add(Vector2D(bObj.optDouble("x").toFloat(), bObj.optDouble("y").toFloat()))
+                                            }
+                                        }
+
+                                        snakeStates.add(
+                                            com.example.server.SnakeState(
+                                                id = id,
+                                                name = name,
+                                                position = Vector2D(px, py),
+                                                angle = angle,
+                                                speed = speed,
+                                                length = length,
+                                                score = score,
+                                                isBoosting = isBoosting,
+                                                body = bodyList,
+                                                isAlive = isAlive,
+                                                activePowerUpType = null,
+                                                powerUpTimer = 0,
+                                                activeAbilityType = "SHIELD",
+                                                abilityCooldownRemaining = 0,
+                                                abilityActiveDuration = 0,
+                                                isFrozen = false,
+                                                isEmped = false,
+                                                primaryColorHex = primaryHex,
+                                                secondaryColorHex = secondaryHex
+                                            )
+                                        )
+                                    }
+                                }
+
+                                val orbsArr = json.optJSONArray("orbs")
+                                val orbStates = mutableListOf<com.example.server.OrbState>()
+                                if (orbsArr != null) {
+                                    for (i in 0 until orbsArr.length()) {
+                                        val oObj = orbsArr.optJSONObject(i) ?: continue
+                                        orbStates.add(
+                                            com.example.server.OrbState(
+                                                id = oObj.optString("id"),
+                                                position = Vector2D(oObj.optDouble("x").toFloat(), oObj.optDouble("y").toFloat()),
+                                                points = oObj.optInt("pts", 10),
+                                                isSuper = oObj.optBoolean("super"),
+                                                isCelestial = oObj.optBoolean("celestial"),
+                                                colorHex = oObj.optString("color", "#00FFCC")
+                                            )
+                                        )
+                                    }
+                                }
+
+                                val snapshot = com.example.server.ServerStateSnapshot(
+                                    tick = tick,
+                                    timestamp = timestamp,
+                                    snakes = snakeStates,
+                                    orbs = orbStates,
+                                    powerUps = emptyList(),
+                                    activeEvent = activeEvent,
+                                    safeZoneRadius = safeZoneRadius,
+                                    serverSignature = ""
+                                )
+
+                                onGameEngineSync?.invoke(snapshot)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+            } catch (e: Exception) {
+                _connectionStatus.value = ConnectionStatus.DISCONNECTED
+            }
+        }
+    }
+
     fun broadcastPlayerPos(
         x: Float,
         y: Float,
@@ -324,6 +569,23 @@ class MultiplayerManager {
                 signature = ""
             )
             server.submitPlayerInput("player_local", inputPacket)
+            return
+        }
+
+        if (lanSocketWriter != null && lanTcpSocket?.isClosed == false) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val inputObj = JSONObject().apply {
+                        put("type", "INPUT")
+                        put("angle", angle.toDouble())
+                        put("isBoosting", isBoosting)
+                        put("triggerAbility", triggerAbility)
+                    }.toString()
+                    lanSocketWriter?.println(inputObj)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
             return
         }
 
@@ -417,10 +679,22 @@ class MultiplayerManager {
     }
 
     fun disconnect() {
+        authoritativeServer?.stopLanHost()
         authoritativeServer?.stopServer()
         authoritativeServer = null
         networkJob?.cancel()
         networkJob = null
+        lanScanJob?.cancel()
+        lanScanJob = null
+        try {
+            lanTcpSocket?.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        lanTcpSocket = null
+        lanSocketWriter = null
+        lanSocketReader = null
+
         socket?.disconnect()
         socket?.off()
         socket = null

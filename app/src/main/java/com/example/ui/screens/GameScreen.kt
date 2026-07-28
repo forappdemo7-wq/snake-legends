@@ -100,9 +100,13 @@ fun GameScreen(
     var showSecurityTerminalInPause by remember { mutableStateOf(false) }
     var soundVolumeFraction by remember { mutableStateOf(0.8f) }
 
-    // Run custom high-performance game tick loop synced directly with coroutine clock (60 ticks / frames per second)
+    // Run custom high-performance game tick loop synced directly with coroutine clock with delta-time calculation
     LaunchedEffect(isPaused) {
+        var lastFrameTime = System.currentTimeMillis()
         while (isActive) {
+            val now = System.currentTimeMillis()
+            val dt = ((now - lastFrameTime) / 1000f).coerceIn(0.001f, 0.1f)
+            lastFrameTime = now
             if (!isPaused && !engine.isGameOver) {
                 if (viewModel.multiplayerManager.authoritativeServer != null) {
                     // SERVER-AUTHORITATIVE MULTIPLAYER: Send inputs ONLY. Server simulates physics and broadcasts snapshots
@@ -127,7 +131,8 @@ fun GameScreen(
                     engine.onTick(
                         joystickAngle = joystickAngle,
                         isBoosting = isBoosting,
-                        abilityTriggered = triggerAbility
+                        abilityTriggered = triggerAbility,
+                        dt = dt
                     )
                     if (triggerAbility) {
                         triggerAbility = false // consumer reset

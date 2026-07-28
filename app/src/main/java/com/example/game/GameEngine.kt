@@ -11,6 +11,44 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
+class SpatialHashGrid<T>(val cellSize: Float = 200f) {
+    private val grid = HashMap<Long, ArrayList<T>>()
+
+    private fun getCellKey(x: Float, y: Float): Long {
+        val cx = (x / cellSize).toInt()
+        val cy = (y / cellSize).toInt()
+        return (cx.toLong() shl 32) or (cy.toLong() and 0xFFFFFFFFL)
+    }
+
+    fun clear() {
+        grid.clear()
+    }
+
+    fun insert(x: Float, y: Float, item: T) {
+        val key = getCellKey(x, y)
+        grid.getOrPut(key) { ArrayList(12) }.add(item)
+    }
+
+    fun queryNearby(x: Float, y: Float, radius: Float, result: MutableList<T>) {
+        val minCx = ((x - radius) / cellSize).toInt()
+        val maxCx = ((x + radius) / cellSize).toInt()
+        val minCy = ((y - radius) / cellSize).toInt()
+        val maxCy = ((y + radius) / cellSize).toInt()
+
+        for (cx in minCx..maxCx) {
+            for (cy in minCy..maxCy) {
+                val key = (cx.toLong() shl 32) or (cy.toLong() and 0xFFFFFFFFL)
+                val cellItems = grid[key]
+                if (cellItems != null) {
+                    result.addAll(cellItems)
+                }
+            }
+        }
+    }
+}
+
+private const val MAX_PARTICLES = 250
+
 class GameEngine {
     // Arena Boundaries (Upgraded map size to a spacious 4000f x 4000f)
     var arenaWidth = 4000f
@@ -29,6 +67,47 @@ class GameEngine {
     val powerUps = mutableListOf<PowerUp>()
     val hazards = mutableListOf<Hazard>()
     val killEvents = mutableListOf<KillEvent>()
+
+    // High-performance Spatial Hash Grids for O(1) collision & spatial indexing
+    private val orbGrid = SpatialHashGrid<Orb>(cellSize = 180f)
+    private data class BodySegmentItem(val snake: Snake, val pos: Vector2D)
+    private val bodyGrid = SpatialHashGrid<BodySegmentItem>(cellSize = 150f)
+
+    fun spawnParticle(
+        position: Vector2D,
+        velocity: Vector2D,
+        color: Color,
+        alpha: Float = 1.0f,
+        fadeSpeed: Float = 0.04f,
+        size: Float = 8f,
+        isStar: Boolean = false,
+        isNebula: Boolean = false
+    ) {
+        if (particles.size >= MAX_PARTICLES) {
+            val reused = particles.minByOrNull { it.alpha } ?: return
+            reused.position = position
+            reused.velocity = velocity
+            reused.color = color
+            reused.alpha = alpha
+            reused.fadeSpeed = fadeSpeed
+            reused.size = size
+            reused.isStar = isStar
+            reused.isNebula = isNebula
+        } else {
+            particles.add(
+                Particle(
+                    position = position,
+                    velocity = velocity,
+                    color = color,
+                    alpha = alpha,
+                    fadeSpeed = fadeSpeed,
+                    size = size,
+                    isStar = isStar,
+                    isNebula = isNebula
+                )
+            )
+        }
+    }
 
     // Sentinel Anti-Cheat Security Core
     val antiCheat = AntiCheatManager()
@@ -342,17 +421,28 @@ class GameEngine {
                     }
                     snakes.add(snake)
                 } else {
-                    existingSnake.position = peerData.position
-                    existingSnake.angle = peerData.angle
+                    // Smooth Entity Interpolation to eliminate network jitter
+                    val lerpFactor = 0.35f
+                    val interpX = existingSnake.position.x + (peerData.position.x - existingSnake.position.x) * lerpFactor
+                    val interpY = existingSnake.position.y + (peerData.position.y - existingSnake.position.y) * lerpFactor
+                    existingSnake.position = Vector2D(interpX, interpY)
+
+                    var diff = peerData.angle - existingSnake.angle
+                    while (diff < -Math.PI) diff += (2 * Math.PI).toFloat()
+                    while (diff > Math.PI) diff -= (2 * Math.PI).toFloat()
+                    existingSnake.angle += diff * lerpFactor
+
                     existingSnake.speed = peerData.speed
                     existingSnake.length = peerData.length
                     existingSnake.score = peerData.score
                     existingSnake.isBoosting = peerData.isBoosting
                     existingSnake.isAlive = peerData.isAlive
                     
-                    existingSnake.body.clear()
-                    peerData.body.forEach { segment ->
-                        existingSnake.body.add(segment)
+                    if (peerData.body.isNotEmpty()) {
+                        existingSnake.body.clear()
+                        peerData.body.forEach { segment ->
+                            existingSnake.body.add(segment)
+                        }
                     }
                 }
             }
@@ -370,12 +460,15 @@ class GameEngine {
     fun onTick(
         joystickAngle: Float?,
         isBoosting: Boolean,
-        abilityTriggered: Boolean
+        abilityTriggered: Boolean,
+        dt: Float = 1f / 60f
     ) {
         if (isGameOver) return
 
+        val scaledDt = (dt * 60f).coerceIn(0.1f, 3.0f)
+
         // 1. Decay camera shake
-        cameraShake = (cameraShake - 0.45f).coerceAtLeast(0f)
+        cameraShake = (cameraShake - 0.45f * scaledDt).coerceAtLeast(0f)
 
         // 2. Weather & Arena Map Event Simulation Tick
         weatherTimer--
@@ -725,7 +818,7 @@ class GameEngine {
 
             val dirX = cos(player.angle.toDouble()).toFloat()
             val dirY = sin(player.angle.toDouble()).toFloat()
-            player.position = player.position + Vector2D(dirX * player.speed, dirY * player.speed)
+            player.position = player.position + Vector2D(dirX * player.speed * scaledDt, dirY * player.speed * scaledDt)
 
             // Length management on boosting (Score-based decay like slither.io/snake.io)
             if (player.isBoosting && Random.nextInt(10) == 0 && player.score > 15) {
@@ -828,16 +921,25 @@ class GameEngine {
                 snake.botTargetTimer = Random.nextInt(60, 150)
                 val choice = Random.nextLong(100)
                 if (choice < 60 && orbs.isNotEmpty()) {
-                    var nearestOrb = orbs[0]
-                    var minDistance = Float.MAX_VALUE
-                    for (i in 0 until minOf(20, orbs.size)) {
-                        val distance = snake.position.distance(orbs[i].position)
-                        if (distance < minDistance) {
-                            minDistance = distance
-                            nearestOrb = orbs[i]
+                    val nearbyOrbs = mutableListOf<Orb>()
+                    orbGrid.queryNearby(snake.position.x, snake.position.y, 600f, nearbyOrbs)
+                    if (nearbyOrbs.isNotEmpty()) {
+                        val nearestOrb = nearbyOrbs.minByOrNull { snake.position.distance(it.position) }
+                        if (nearestOrb != null) {
+                            snake.botTarget = nearestOrb.position
                         }
+                    } else {
+                        var nearestOrb = orbs[0]
+                        var minDistance = Float.MAX_VALUE
+                        for (i in 0 until minOf(20, orbs.size)) {
+                            val distance = snake.position.distance(orbs[i].position)
+                            if (distance < minDistance) {
+                                minDistance = distance
+                                nearestOrb = orbs[i]
+                            }
+                        }
+                        snake.botTarget = nearestOrb.position
                     }
-                    snake.botTarget = nearestOrb.position
                 } else if (choice < 90 && snakes.size > 1) {
                     val targetSnake = snakes.first { it.id != snake.id && it.isAlive }
                     snake.botTarget = targetSnake.position
@@ -946,17 +1048,15 @@ class GameEngine {
                 val randVal = Random.nextInt(3)
                 val isNebulaPuff = randVal == 0
                 val isStarGlitter = randVal == 1
-                particles.add(
-                    Particle(
-                        position = snake.position,
-                        velocity = Vector2D(-bDirX * 2.5f + (Random.nextFloat() * 1.5f - 0.75f), -bDirY * 2.5f + (Random.nextFloat() * 1.5f - 0.75f)),
-                        color = if (isStarGlitter) Color.White else snake.primaryColor,
-                        alpha = 1.0f,
-                        fadeSpeed = if (isNebulaPuff) 0.04f else 0.08f,
-                        size = if (isNebulaPuff) 8f else (if (isStarGlitter) 5f else 6f),
-                        isStar = isStarGlitter,
-                        isNebula = isNebulaPuff
-                    )
+                spawnParticle(
+                    position = snake.position,
+                    velocity = Vector2D(-bDirX * 2.5f + (Random.nextFloat() * 1.5f - 0.75f), -bDirY * 2.5f + (Random.nextFloat() * 1.5f - 0.75f)),
+                    color = if (isStarGlitter) Color.White else snake.primaryColor,
+                    alpha = 1.0f,
+                    fadeSpeed = if (isNebulaPuff) 0.04f else 0.08f,
+                    size = if (isNebulaPuff) 8f else (if (isStarGlitter) 5f else 6f),
+                    isStar = isStarGlitter,
+                    isNebula = isNebulaPuff
                 )
             }
 
@@ -985,115 +1085,125 @@ class GameEngine {
             }
         }
 
-        // 10. Head-to-Body Collision Detection
+        // 10. High-Performance Spatial Hash Grid Head-to-Body Collision Detection
+        bodyGrid.clear()
+        for (s in snakes) {
+            if (!s.isAlive) continue
+            val checkSegs = if (s.body.size > 2) s.body.subList(2, s.body.size) else s.body
+            for (seg in checkSegs) {
+                bodyGrid.insert(seg.x, seg.y, BodySegmentItem(s, seg))
+            }
+        }
+
+        val nearbySegsScratch = mutableListOf<BodySegmentItem>()
         for (snake in snakes) {
             if (!snake.isAlive) continue
+            if (snake.specialAbilityActive || snake.activePowerUpType == PowerUpType.SHIELD || snake.activePowerUpType == PowerUpType.GHOST) continue
 
-            for (other in snakes) {
-                if (!other.isAlive) continue
-                // Don't collide with self. Ignore if shielded, phasing ghost, or utilizing active invents.
-                if (snake.id == other.id || snake.specialAbilityActive || snake.activePowerUpType == PowerUpType.SHIELD || snake.activePowerUpType == PowerUpType.GHOST) continue
+            nearbySegsScratch.clear()
+            bodyGrid.queryNearby(snake.position.x, snake.position.y, 120f, nearbySegsScratch)
 
-                val segmentsToCheck = if (other.body.size > 2) other.body.subList(2, other.body.size) else other.body
-                for (seg in segmentsToCheck) {
-                    val collisionThreshold = (11f * snake.thicknessFactor) + (11f * other.thicknessFactor)
-                    if (snake.position.distance(seg) < collisionThreshold) {
-                        snake.isAlive = false
-                        
-                        if (snake.isPlayer) {
+            for (item in nearbySegsScratch) {
+                val other = item.snake
+                if (snake.id == other.id) continue
+                val seg = item.pos
+                val collisionThreshold = (11f * snake.thicknessFactor) + (11f * other.thicknessFactor)
+                if (snake.position.distance(seg) < collisionThreshold) {
+                    snake.isAlive = false
+                    
+                    if (snake.isPlayer) {
+                        triggerHaptic("heavy")
+                        cameraShake = 25f
+                        SoundEngine.playCollisionSound()
+                    } else {
+                        if (other.isPlayer) {
+                            totalKills++
+                            totalCoinsEarned += 100
+                            totalXpEarned += 400
+                            floatingTexts.add(FloatingText(snake.position, "KILL +400 XP", Color(0xFFFF5252)))
                             triggerHaptic("heavy")
-                            cameraShake = 25f
-                            SoundEngine.playCollisionSound()
-                        } else {
-                            if (other.isPlayer) {
-                                totalKills++
-                                totalCoinsEarned += 100
-                                totalXpEarned += 400
-                                floatingTexts.add(FloatingText(snake.position, "KILL +400 XP", Color(0xFFFF5252)))
-                                triggerHaptic("heavy")
-                                cameraShake = 20f
-                                SoundEngine.playKillSound()
-                            }
+                            cameraShake = 20f
+                            SoundEngine.playKillSound()
                         }
-                        publishKill(other, snake, "collision")
-                        eliminateSnake(snake)
-                        break
                     }
+                    publishKill(other, snake, "collision")
+                    eliminateSnake(snake)
+                    break
                 }
             }
         }
 
-        // 11. Food Eating Check
-        val eatenOrbIds = mutableListOf<String>()
+        // 11. High-Performance Spatial Hash Grid Food Eating Check
+        orbGrid.clear()
         for (orb in orbs) {
-            val pEatingDist = (15f * player.thicknessFactor) + 12f
-            if (player.isAlive && player.position.distance(orb.position) < pEatingDist) {
-                val multiplier = if (player.activePowerUpType == PowerUpType.DOUBLE_POINTS) 2 else 1
-                player.score += orb.points * multiplier
-                player.length = 4 + (player.score / 25)
-                eatenOrbIds.add(orb.id)
-                SoundEngine.playEatSound(orb.isSuperOrb, orb.isCelestialOrb)
-                
-                val coinsToAdd = (if (orb.isCelestialOrb) 50 else if (orb.isSuperOrb) 5 else 1) * multiplier
-                val xpToAdd = (if (orb.isCelestialOrb) 150 else if (orb.isSuperOrb) 20 else 5) * multiplier
-                totalCoinsEarned += coinsToAdd
-                totalXpEarned += xpToAdd
-                
-                val particleCount = if (orb.isCelestialOrb) 20 else 5
-                for (i in 0 until particleCount) {
-                    val pColor = if (orb.isCelestialOrb) {
-                        listOf(Color(0xFFFF00FF), Color(0xFF00FFCC), Color(0xFFFFFF33), Color(0xFFE040FB)).random()
-                    } else {
-                        orb.color
-                    }
-                    val isCelestial = orb.isCelestialOrb
-                    val isNebulaPuff = isCelestial && (i % 3 == 0)
-                    val isStarGlitter = (isCelestial && !isNebulaPuff) || (!isCelestial && Random.nextInt(4) == 0)
-                    particles.add(
-                        Particle(
-                            position = orb.position,
-                            velocity = Vector2D(
-                                Random.nextFloat() * (if (isCelestial) 10f else 5f) - (if (isCelestial) 5f else 2.5f),
-                                Random.nextFloat() * (if (isCelestial) 10f else 5f) - (if (isCelestial) 5f else 2.5f)
-                            ),
-                            color = pColor,
-                            alpha = 1.0f,
-                            fadeSpeed = if (isNebulaPuff) 0.02f else (if (isCelestial) 0.04f else 0.07f),
-                            size = if (isNebulaPuff) 14f else (if (isCelestial) 8f else 5f),
-                            isStar = isStarGlitter,
-                            isNebula = isNebulaPuff
-                        )
-                    )
-                }
+            orbGrid.insert(orb.position.x, orb.position.y, orb)
+        }
 
-                if (orb.isCelestialOrb) {
-                    floatingTexts.add(FloatingText(orb.position, "CELESTIAL ANOMALY! +${orb.points * multiplier}", Color(0xFFFF00FF)))
-                    triggerHaptic("heavy")
-                    cameraShake = 12f
-                } else if (orb.isSuperOrb) {
-                    floatingTexts.add(FloatingText(orb.position, "+${orb.points * multiplier} length", Color(0xFFFFFF33)))
-                    triggerHaptic("medium")
-                } else {
-                    triggerHaptic("light")
-                }
-            }
+        val eatenOrbIds = HashSet<String>()
+        val nearbyOrbsScratch = mutableListOf<Orb>()
 
-            // Check if bots eat
-            for (snake in snakes) {
-                if (snake.isPlayer || !snake.isAlive) continue
-                val sEatingDist = (15f * snake.thicknessFactor) + 12f
-                if (snake.position.distance(orb.position) < sEatingDist) {
+        for (snake in snakes) {
+            if (!snake.isAlive) continue
+            val eatingDist = (15f * snake.thicknessFactor) + 12f
+            nearbyOrbsScratch.clear()
+            orbGrid.queryNearby(snake.position.x, snake.position.y, eatingDist + 40f, nearbyOrbsScratch)
+
+            for (orb in nearbyOrbsScratch) {
+                if (eatenOrbIds.contains(orb.id)) continue
+                if (snake.position.distance(orb.position) < eatingDist) {
+                    eatenOrbIds.add(orb.id)
                     val multiplier = if (snake.activePowerUpType == PowerUpType.DOUBLE_POINTS) 2 else 1
                     snake.score += orb.points * multiplier
                     snake.length = 4 + (snake.score / 25)
-                    eatenOrbIds.add(orb.id)
-                    
-                    if (orb.isCelestialOrb) {
-                        for (i in 0..5) {
-                            val isNebulaPuff = i == 0
-                            val isStarGlitter = i == 1
-                            particles.add(
-                                Particle(
+
+                    if (snake.isPlayer) {
+                        SoundEngine.playEatSound(orb.isSuperOrb, orb.isCelestialOrb)
+                        val coinsToAdd = (if (orb.isCelestialOrb) 50 else if (orb.isSuperOrb) 5 else 1) * multiplier
+                        val xpToAdd = (if (orb.isCelestialOrb) 150 else if (orb.isSuperOrb) 20 else 5) * multiplier
+                        totalCoinsEarned += coinsToAdd
+                        totalXpEarned += xpToAdd
+                        
+                        val particleCount = if (orb.isCelestialOrb) 12 else 4
+                        for (i in 0 until particleCount) {
+                            val pColor = if (orb.isCelestialOrb) {
+                                listOf(Color(0xFFFF00FF), Color(0xFF00FFCC), Color(0xFFFFFF33), Color(0xFFE040FB)).random()
+                            } else {
+                                orb.color
+                            }
+                            val isCelestial = orb.isCelestialOrb
+                            val isNebulaPuff = isCelestial && (i % 3 == 0)
+                            val isStarGlitter = (isCelestial && !isNebulaPuff) || (!isCelestial && Random.nextInt(4) == 0)
+                            spawnParticle(
+                                position = orb.position,
+                                velocity = Vector2D(
+                                    Random.nextFloat() * (if (isCelestial) 10f else 5f) - (if (isCelestial) 5f else 2.5f),
+                                    Random.nextFloat() * (if (isCelestial) 10f else 5f) - (if (isCelestial) 5f else 2.5f)
+                                ),
+                                color = pColor,
+                                alpha = 1.0f,
+                                fadeSpeed = if (isNebulaPuff) 0.02f else (if (isCelestial) 0.04f else 0.07f),
+                                size = if (isNebulaPuff) 14f else (if (isCelestial) 8f else 5f),
+                                isStar = isStarGlitter,
+                                isNebula = isNebulaPuff
+                            )
+                        }
+
+                        if (orb.isCelestialOrb) {
+                            floatingTexts.add(FloatingText(orb.position, "CELESTIAL ANOMALY! +${orb.points * multiplier}", Color(0xFFFF00FF)))
+                            triggerHaptic("heavy")
+                            cameraShake = 12f
+                        } else if (orb.isSuperOrb) {
+                            floatingTexts.add(FloatingText(orb.position, "+${orb.points * multiplier} length", Color(0xFFFFFF33)))
+                            triggerHaptic("medium")
+                        } else {
+                            triggerHaptic("light")
+                        }
+                    } else {
+                        if (orb.isCelestialOrb) {
+                            for (i in 0..3) {
+                                val isNebulaPuff = i == 0
+                                val isStarGlitter = i == 1
+                                spawnParticle(
                                     position = orb.position,
                                     velocity = Vector2D(Random.nextFloat() * 6f - 3f, Random.nextFloat() * 6f - 3f),
                                     color = orb.color,
@@ -1103,7 +1213,7 @@ class GameEngine {
                                     isStar = isStarGlitter,
                                     isNebula = isNebulaPuff
                                 )
-                            )
+                            }
                         }
                     }
                 }

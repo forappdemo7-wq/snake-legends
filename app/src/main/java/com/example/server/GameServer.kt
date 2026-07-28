@@ -48,6 +48,22 @@ class GameServer {
     // Registered local snapshot receivers
     private val localSnapshotListeners = CopyOnWriteArrayList<(ServerStateSnapshot) -> Unit>()
 
+    private var lanP2PServer: LanP2PServer? = null
+
+    fun startLanHost(hostUsername: String, port: Int = 8888, roomCode: String = "LAN888"): String {
+        startServer()
+        if (lanP2PServer == null) {
+            lanP2PServer = LanP2PServer(this, port)
+        }
+        lanP2PServer?.startLanServer(hostUsername, roomCode)
+        return LanP2PServer.getLocalIpAddress() ?: "127.0.0.1"
+    }
+
+    fun stopLanHost() {
+        lanP2PServer?.stopLanServer()
+        lanP2PServer = null
+    }
+
     init {
         // Initialize hazards authoritatively
         initializeHazards()

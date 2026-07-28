@@ -89,14 +89,14 @@ data class Orb(
 
 data class Particle(
     var position: Vector2D,
-    val velocity: Vector2D,
-    val color: Color,
+    var velocity: Vector2D,
+    var color: Color,
     var alpha: Float = 1.0f,
-    val fadeSpeed: Float = 0.04f,
-    val size: Float = 8f,
-    val isStar: Boolean = false,
-    val isNebula: Boolean = false,
-    val rotationAngle: Float = 0f
+    var fadeSpeed: Float = 0.04f,
+    var size: Float = 8f,
+    var isStar: Boolean = false,
+    var isNebula: Boolean = false,
+    var rotationAngle: Float = 0f
 )
 
 data class FloatingText(
