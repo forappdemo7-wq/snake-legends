@@ -2160,24 +2160,25 @@ fun GameScreen(
             Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .width(130.dp),
+                    .width(150.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.End
             ) {
-                // Live Network Telemetry
+                // Live Network Telemetry Badge
                 val connStatus by viewModel.multiplayerManager.connectionStatus.collectAsState()
                 val pingVal by viewModel.multiplayerManager.pingMs.collectAsState()
                 val packetLossVal by viewModel.multiplayerManager.packetLoss.collectAsState()
+                val serverHost by viewModel.multiplayerManager.connectedServerHost.collectAsState()
 
                 val statusLabel: String
                 val statusColor: Color
                 when (connStatus) {
                     ConnectionStatus.OFFLINE -> {
-                        statusLabel = "LOCAL SYNCS"
+                        statusLabel = "OFFLINE"
                         statusColor = Color.Gray
                     }
                     ConnectionStatus.CONNECTING -> {
-                        statusLabel = "CONNECTING"
+                        statusLabel = "CONNECTING..."
                         statusColor = Color(0xFFFF9900)
                     }
                     ConnectionStatus.HANDSHARING -> {
@@ -2185,7 +2186,7 @@ fun GameScreen(
                         statusColor = Color(0xFFCC00FF)
                     }
                     ConnectionStatus.CONNECTED -> {
-                        statusLabel = "LIVE NET"
+                        statusLabel = "LIVE ONLINE"
                         statusColor = Color(0xFF00FFCC)
                     }
                     ConnectionStatus.DISCONNECTED -> {
@@ -2194,50 +2195,116 @@ fun GameScreen(
                     }
                 }
 
+                val pingColor = when {
+                    pingVal < 80 -> Color(0xFF00FFCC)
+                    pingVal < 180 -> Color(0xFFFFD700)
+                    else -> Color(0xFFFF3366)
+                }
+
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.7f)),
-                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f)),
-                    shape = RoundedCornerShape(8.dp)
+                    modifier = Modifier.fillMaxWidth().testTag("live_connection_badge"),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xF0070B13)),
+                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(6.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                     ) {
+                        // Live Pulse Dot & Connection State
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(statusColor)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                val pulseDotAlpha by rememberInfiniteTransition(label = "ping_pulse").animateFloat(
+                                    initialValue = 0.4f,
+                                    targetValue = 1.0f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(800, easing = LinearEasing),
+                                        repeatMode = RepeatMode.Reverse
+                                    ),
+                                    label = "pulseAlpha"
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(statusColor.copy(alpha = pulseDotAlpha))
+                                )
+                                Text(
+                                    text = statusLabel,
+                                    color = statusColor,
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+
+                            if (connStatus == ConnectionStatus.CONNECTED) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Wifi,
+                                        contentDescription = "Ping",
+                                        tint = pingColor,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Text(
+                                        text = "${pingVal}ms",
+                                        color = pingColor,
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(3.dp))
+
+                        // Cloud Server Pill (Render.com badge)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0x2200FFCC))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudQueue,
+                                contentDescription = "Server",
+                                tint = Color(0xFF00FFCC),
+                                modifier = Modifier.size(10.dp)
                             )
                             Text(
-                                text = statusLabel,
-                                color = statusColor,
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Black,
+                                text = serverHost.uppercase(),
+                                color = Color.White,
+                                fontSize = 7.5.sp,
+                                fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
-                                letterSpacing = 0.5.sp
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        
-                        Spacer(modifier = Modifier.height(2.dp))
-                        
-                        Text(
-                            text = "REGION: ${viewModel.multiplayerManager.selectedRegion.name.take(6)}",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 7.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
 
-                        if (connStatus == ConnectionStatus.CONNECTED) {
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Text(
-                                text = "LATENCY: ${pingVal}ms",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 7.5.sp,
+                                text = "REGION: ${viewModel.multiplayerManager.selectedRegion.name.take(6)}",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 7.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace
                             )
@@ -2245,7 +2312,7 @@ fun GameScreen(
                                 Text(
                                     text = "LOSS: ${String.format("%.1f%%", packetLossVal * 100f)}",
                                     color = Color(0xFFFF3366),
-                                    fontSize = 7.5.sp,
+                                    fontSize = 7.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace
                                 )

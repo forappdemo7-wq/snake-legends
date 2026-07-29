@@ -89,6 +89,9 @@ class MultiplayerManager {
     private val _packetLoss = MutableStateFlow(0.0f)
     val packetLoss: StateFlow<Float> = _packetLoss.asStateFlow()
 
+    private val _connectedServerHost = MutableStateFlow("RENDER CLOUD")
+    val connectedServerHost: StateFlow<String> = _connectedServerHost.asStateFlow()
+
     private val _incomingGameStartTrigger = MutableStateFlow(false)
     val incomingGameStartTrigger: StateFlow<Boolean> = _incomingGameStartTrigger.asStateFlow()
 
@@ -161,6 +164,9 @@ class MultiplayerManager {
             socketServerUrls.random()
         }
 
+        val hostLabel = if (chosenUrl.contains("onrender.com")) "RENDER CLOUD" else chosenUrl.removePrefix("https://").removePrefix("http://").take(18)
+        _connectedServerHost.value = hostLabel
+
         try {
             val opts = IO.Options().apply {
                 forceNew = true
@@ -178,9 +184,11 @@ class MultiplayerManager {
                     delay(300)
                     _connectionStatus.value = ConnectionStatus.CONNECTED
 
-                    // Join room
+                    // Join room (support both roomId/roomCode and playerName/username)
                     val joinPayload = JSONObject().apply {
+                        put("roomId", currentRoomCode)
                         put("roomCode", currentRoomCode)
+                        put("playerName", currentUsername)
                         put("username", currentUsername)
                         put("timestamp", System.currentTimeMillis())
                     }
@@ -188,11 +196,62 @@ class MultiplayerManager {
                 }
             }
 
+            socket?.on("player_joined") { args ->
+                val data = args.getOrNull(0) as? JSONObject ?: return@on
+                val pName = data.optString("playerName", data.optString("username", ""))
+                if (pName.isNotEmpty() && pName != currentUsername) {
+                    addParticipant(pName)
+                }
+            }
+
+            socket?.on("player_left") { args ->
+                val data = args.getOrNull(0) as? JSONObject ?: return@on
+                val pId = data.optString("playerId", "")
+                if (pId.isNotEmpty()) {
+                    val pName = data.optString("playerName", pId)
+                    val current = activeParticipants.value.toMutableList()
+                    current.remove(pName)
+                    updateActiveParticipants(current)
+                }
+            }
+
             socket?.on("peer_joined") { args ->
                 val data = args.getOrNull(0) as? JSONObject ?: return@on
-                val user = data.optString("username", "")
+                val user = data.optString("username", data.optString("playerName", ""))
                 if (user.isNotEmpty() && user != currentUsername) {
                     addParticipant(user)
+                }
+            }
+
+            socket?.on("state_snapshot") { args ->
+                val data = args.getOrNull(0) as? JSONObject ?: return@on
+                val playersArr = data.optJSONArray("players") ?: return@on
+                for (i in 0 until playersArr.length()) {
+                    val pObj = playersArr.optJSONObject(i) ?: continue
+                    val peerName = pObj.optString("name", pObj.optString("id", ""))
+                    if (peerName.isNotEmpty() && peerName != currentUsername) {
+                        val px = pObj.optDouble("x", 0.0).toFloat()
+                        val py = pObj.optDouble("y", 0.0).toFloat()
+                        val pAngle = pObj.optDouble("angle", 0.0).toFloat()
+                        val pSpeed = pObj.optDouble("speed", 5.0).toFloat()
+                        val pScore = pObj.optInt("score", 0)
+
+                        updatePeerSnake(peerName, PeerSnakeData(
+                            id = "mp_$peerName",
+                            name = peerName,
+                            position = Vector2D(px, py),
+                            angle = pAngle,
+                            speed = pSpeed,
+                            length = 4 + (pScore / 10),
+                            score = pScore,
+                            isBoosting = pSpeed > 6.0f,
+                            primaryColorHex = "#00FFCC",
+                            secondaryColorHex = "#0099FF",
+                            body = mutableListOf(Vector2D(px, py)),
+                            isAlive = true,
+                            lastUpdated = System.currentTimeMillis()
+                        ))
+                    }
                 }
             }
 
@@ -288,6 +347,7 @@ class MultiplayerManager {
             socket?.on(Socket.EVENT_CONNECT_ERROR) {
                 // Fallback to emulation mode
                 _connectionStatus.value = ConnectionStatus.CONNECTED // Still show connected in UI
+                _connectedServerHost.value = "EMULATED BOTS"
                 isEmulated = true
                 // Add mock peers after a delay
                 scope.launch(Dispatchers.Main) {
@@ -392,6 +452,7 @@ class MultiplayerManager {
         currentUsername = username
         currentRoomCode = "LAN_$hostIp"
         _connectionStatus.value = ConnectionStatus.CONNECTING
+        _connectedServerHost.value = "LAN SERVER ($hostIp)"
 
         updateChatMessages(emptyList())
         updateActiveParticipants(listOf(username))
@@ -617,6 +678,12 @@ class MultiplayerManager {
                     put("secondaryHex", secondaryHex)
                 }
                 socketRef.emit("sync_position", payload)
+
+                val inputPayload = JSONObject().apply {
+                    put("angle", angle.toDouble())
+                    put("boosting", isBoosting)
+                }
+                socketRef.emit("input_stream", inputPayload)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
